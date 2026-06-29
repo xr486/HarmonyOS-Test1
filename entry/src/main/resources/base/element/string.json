@@ -1,0 +1,140 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "校园失物招领应用"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "校园失物招领主入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "校园失物招领"
+    },
+    {
+      "name": "tab_home",
+      "value": "首页"
+    },
+    {
+      "name": "tab_publish",
+      "value": "发布"
+    },
+    {
+      "name": "tab_profile",
+      "value": "我的"
+    },
+    {
+      "name": "lost",
+      "value": "寻物"
+    },
+    {
+      "name": "found",
+      "value": "招领"
+    },
+    {
+      "name": "search_placeholder",
+      "value": "搜索物品名称、地点..."
+    },
+    {
+      "name": "publish_title",
+      "value": "发布信息"
+    },
+    {
+      "name": "detail_title",
+      "value": "详情"
+    },
+    {
+      "name": "profile_title",
+      "value": "个人中心"
+    },
+    {
+      "name": "status_active",
+      "value": "进行中"
+    },
+    {
+      "name": "status_claimed",
+      "value": "已认领"
+    },
+    {
+      "name": "status_returned",
+      "value": "已寻回"
+    },
+    {
+      "name": "all_types",
+      "value": "全部"
+    },
+    {
+      "name": "card",
+      "value": "证件卡片"
+    },
+    {
+      "name": "digital",
+      "value": "数码产品"
+    },
+    {
+      "name": "clothing",
+      "value": "衣物服饰"
+    },
+    {
+      "name": "book",
+      "value": "书籍文具"
+    },
+    {
+      "name": "other",
+      "value": "其他物品"
+    },
+    {
+      "name": "login",
+      "value": "点击登录"
+    },
+    {
+      "name": "my_publish",
+      "value": "我的发布"
+    },
+    {
+      "name": "edit",
+      "value": "编辑"
+    },
+    {
+      "name": "off_shelf",
+      "value": "下架"
+    },
+    {
+      "name": "submit",
+      "value": "发布"
+    },
+    {
+      "name": "item_name",
+      "value": "物品名称"
+    },
+    {
+      "name": "item_desc",
+      "value": "物品描述"
+    },
+    {
+      "name": "item_location",
+      "value": "地点"
+    },
+    {
+      "name": "contact_info",
+      "value": "联系方式"
+    },
+    {
+      "name": "upload_image",
+      "value": "添加图片"
+    },
+    {
+      "name": "select_type",
+      "value": "选择类型"
+    },
+    {
+      "name": "publish_time",
+      "value": "发布时间"
+    },
+    {
+      "name": "latest_info",
+      "value": "最新动态"
+    }
+  ]
+}

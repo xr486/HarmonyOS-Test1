@@ -1,0 +1,130 @@
+import { ItemType, ItemCategory, ItemStatus, LostFoundItem } from '../bean/LostFoundItem';
+
+export function generateMockData(): LostFoundItem[] {
+  const now = Date.now();
+  const hour = 60 * 60 * 1000;
+  const day = 24 * hour;
+  const result: LostFoundItem[] = [];
+
+  const item1 = new LostFoundItem();
+  item1.id = '1';
+  item1.type = ItemType.LOST;
+  item1.category = ItemCategory.CARD;
+  item1.title = '丢失校园卡';
+  item1.description = '在图书馆三楼自习室丢失一张校园卡，卡主姓名：张三，学号：2021001001，有捡到的同学请联系我，非常感谢！';
+  item1.location = '图书馆三楼';
+  item1.contact = '13800138001';
+  item1.images = [''];
+  item1.publishTime = now - 30 * 60 * 1000;
+  item1.publisherId = 'user1';
+  item1.publisherName = '张三';
+  item1.status = ItemStatus.ACTIVE;
+  result.push(item1);
+
+  const item2 = new LostFoundItem();
+  item2.id = '2';
+  item2.type = ItemType.FOUND;
+  item2.category = ItemCategory.DIGITAL;
+  item2.title = '捡到AirPods Pro';
+  item2.description = '在第一教学楼201教室门口捡到一副AirPods Pro，白色充电盒，已交到一楼值班室，请失主携带有效证件前去认领。';
+  item2.location = '一教201';
+  item2.contact = '值班室';
+  item2.images = [''];
+  item2.publishTime = now - 2 * hour;
+  item2.publisherId = 'user2';
+  item2.publisherName = '李四';
+  item2.status = ItemStatus.ACTIVE;
+  result.push(item2);
+
+  const item3 = new LostFoundItem();
+  item3.id = '3';
+  item3.type = ItemType.LOST;
+  item3.category = ItemCategory.BOOK;
+  item3.title = '寻找《高等数学》教材';
+  item3.description = '丢失一本同济大学版《高等数学》（第七版上册），书内有较多笔记，对我很重要，望捡到的同学联系我。';
+  item3.location = '第二教学楼';
+  item3.contact = '微信：math2024';
+  item3.images = [''];
+  item3.publishTime = now - 5 * hour;
+  item3.publisherId = 'user3';
+  item3.publisherName = '王五';
+  item3.status = ItemStatus.ACTIVE;
+  result.push(item3);
+
+  const item4 = new LostFoundItem();
+  item4.id = '4';
+  item4.type = ItemType.FOUND;
+  item4.category = ItemCategory.CARD;
+  item4.title = '捡到身份证';
+  item4.description = '在食堂二楼捡到一张身份证，姓名：赵六，地址：XX省XX市，请失主看到后联系我取回。';
+  item4.location = '学生食堂二楼';
+  item4.contact = '13900139002';
+  item4.images = [''];
+  item4.publishTime = now - day;
+  item4.publisherId = 'user4';
+  item4.publisherName = '赵同学';
+  item4.status = ItemStatus.CLAIMED;
+  result.push(item4);
+
+  const item5 = new LostFoundItem();
+  item5.id = '5';
+  item5.type = ItemType.LOST;
+  item5.category = ItemCategory.CLOTHING;
+  item5.title = '丢失黑色外套';
+  item5.description = '在操场看台上丢失一件黑色北面冲锋衣，L码，口袋里有钥匙和少量现金，有捡到的请联系，必有重谢！';
+  item5.location = '操场看台';
+  item5.contact = 'QQ：123456789';
+  item5.images = [''];
+  item5.publishTime = now - 2 * day;
+  item5.publisherId = 'user5';
+  item5.publisherName = '孙七';
+  item5.status = ItemStatus.RETURNED;
+  result.push(item5);
+
+  const item6 = new LostFoundItem();
+  item6.id = '6';
+  item6.type = ItemType.FOUND;
+  item6.category = ItemCategory.OTHER;
+  item6.title = '捡到一串钥匙';
+  item6.description = '在宿舍楼下捡到一串钥匙，大约有5把，上面挂着一个小熊挂件，已放在宿管阿姨处。';
+  item6.location = '3号宿舍楼';
+  item6.contact = '宿管阿姨';
+  item6.images = [''];
+  item6.publishTime = now - 3 * day;
+  item6.publisherId = 'user6';
+  item6.publisherName = '周八';
+  item6.status = ItemStatus.ACTIVE;
+  result.push(item6);
+
+  const item7 = new LostFoundItem();
+  item7.id = '7';
+  item7.type = ItemType.LOST;
+  item7.category = ItemCategory.DIGITAL;
+  item7.title = '丢失华为手机';
+  item7.description = '丢失一台华为Mate 60 Pro，黑色手机壳，手机里有很多重要资料，捡到归还必有重谢500元！';
+  item7.location = '体育馆附近';
+  item7.contact = '13700137003';
+  item7.images = [''];
+  item7.publishTime = now - 4 * hour;
+  item7.publisherId = 'user7';
+  item7.publisherName = '吴九';
+  item7.status = ItemStatus.ACTIVE;
+  result.push(item7);
+
+  const item8 = new LostFoundItem();
+  item8.id = '8';
+  item8.type = ItemType.FOUND;
+  item8.category = ItemCategory.BOOK;
+  item8.title = '捡到笔记本';
+  item8.description = '在自习室捡到一本考研英语笔记本，封面写着"考研加油"，内有很多复习笔记，望失主联系领取。';
+  item8.location = '图书馆四楼自习室';
+  item8.contact = '13600136004';
+  item8.images = [''];
+  item8.publishTime = now - 6 * hour;
+  item8.publisherId = 'user8';
+  item8.publisherName = '郑十';
+  item8.status = ItemStatus.ACTIVE;
+  result.push(item8);
+
+  return result;
+}

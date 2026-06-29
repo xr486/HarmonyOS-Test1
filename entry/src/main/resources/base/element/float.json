@@ -1,0 +1,32 @@
+{
+  "float": [
+    {
+      "name": "page_text_font_size",
+      "value": "16fp"
+    },
+    {
+      "name": "title_font_size",
+      "value": "18fp"
+    },
+    {
+      "name": "caption_font_size",
+      "value": "12fp"
+    },
+    {
+      "name": "item_padding",
+      "value": "12vp"
+    },
+    {
+      "name": "card_radius",
+      "value": "12vp"
+    },
+    {
+      "name": "image_size",
+      "value": "80vp"
+    },
+    {
+      "name": "tab_height",
+      "value": "56vp"
+    }
+  ]
+}
