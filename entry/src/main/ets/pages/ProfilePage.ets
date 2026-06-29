@@ -1,11 +1,13 @@
 import { AppViewModel } from '../common/viewmodel/AppViewModel';
 import { LostFoundItem, ItemStatus, formatTime, getStatusText } from '../common/bean/LostFoundItem';
-import { UserInfo } from '../common/bean/UserInfo';
+import { UserStore } from '../common/store/UserStore';
 import router from '@ohos.router';
+import promptAction from '@ohos.promptAction';
 
 @Component
 export struct ProfileContent {
   @State viewModel: AppViewModel = AppViewModel.getInstance();
+  @State userStore: UserStore = UserStore.getInstance();
   @StorageLink('globalDataVersion')
   @Watch('onDataVersionChange')
   dataVersion: number = 0;
@@ -39,16 +41,21 @@ export struct ProfileContent {
   }
 
   handleLogin() {
-    if (!this.viewModel.isLoggedIn()) {
-      const user: UserInfo = new UserInfo();
-      user.id = 'user_' + Date.now();
-      user.name = '校园用户';
-      this.viewModel.login(user);
-    }
+    router.pushUrl({
+      url: 'pages/LoginPage'
+    });
   }
 
   handleLogout() {
+    this.userStore.logout();
     this.viewModel.logout();
+    promptAction.showToast({ message: '已退出登录', duration: 2000 });
+  }
+
+  goEditProfile() {
+    router.pushUrl({
+      url: 'pages/EditProfilePage'
+    });
   }
 
   @Builder
@@ -135,58 +142,88 @@ export struct ProfileContent {
     })
   }
 
-  build() {
+  @Builder
+  UserInfoSection() {
     Column() {
-      Column() {
+      Row() {
         Column() {
           Text('👤')
-            .fontSize(48)
+            .fontSize(32)
         }
-        .width(80)
-        .height(80)
+        .width(64)
+        .height(64)
         .backgroundColor($r('app.color.primary_light'))
-        .borderRadius(40)
+        .borderRadius(32)
         .justifyContent(FlexAlign.Center)
-        .margin({ bottom: 12 })
+        .margin({ right: 16 })
 
-        if (this.viewModel.isLoggedIn()) {
-          Text(this.viewModel.currentUser!.name)
-            .fontSize(18)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary'))
-            .margin({ bottom: 6 })
-          Text('欢迎使用校园失物招领')
-            .fontSize(13)
-            .fontColor($r('app.color.text_hint'))
-            .margin({ bottom: 16 })
-          Button('退出登录')
-            .fontSize(13)
-            .height(32)
-            .backgroundColor($r('app.color.bg_color'))
-            .fontColor($r('app.color.text_secondary'))
-            .onClick(() => {
-              this.handleLogout();
-            })
-        } else {
-          Text('点击登录')
-            .fontSize(18)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary'))
-            .margin({ bottom: 6 })
-            .onClick(() => {
-              this.handleLogin();
-            })
-          Text('登录后可发布和管理信息')
-            .fontSize(13)
-            .fontColor($r('app.color.text_hint'))
-            .margin({ bottom: 16 })
+        Column() {
+          if (this.userStore.isLoggedIn && this.userStore.userInfo) {
+            Text(this.userStore.userInfo.name)
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+            if (this.userStore.userInfo.studentId) {
+              Text('学号：' + this.userStore.userInfo.studentId)
+                .fontSize(13)
+                .fontColor($r('app.color.text_hint'))
+                .margin({ top: 4 })
+            }
+          } else {
+            Text('点击登录')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+          }
         }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+
+        Text(' >')
+          .fontSize(16)
+          .fontColor($r('app.color.text_hint'))
       }
       .width('100%')
-      .padding({ top: 30, bottom: 20 })
-      .backgroundColor($r('app.color.white'))
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
+      .padding(16)
+      .onClick(() => {
+        if (this.userStore.isLoggedIn) {
+          this.goEditProfile();
+        } else {
+          this.handleLogin();
+        }
+      })
+    }
+    .width('100%')
+    .backgroundColor($r('app.color.white'))
+  }
+
+  @Builder
+  MenuItem(icon: string, title: string, showArrow: boolean = true, onClick: () => void = () => {}) {
+    Row() {
+      Text(icon)
+        .fontSize(18)
+        .margin({ right: 12 })
+      Text(title)
+        .fontSize(15)
+        .fontColor($r('app.color.text_primary'))
+        .layoutWeight(1)
+      if (showArrow) {
+        Text('>')
+          .fontSize(14)
+          .fontColor($r('app.color.text_hint'))
+      }
+    }
+    .width('100%')
+    .height(52)
+    .padding({ left: 16, right: 16 })
+    .onClick(() => {
+      onClick();
+    })
+  }
+
+  build() {
+    Column() {
+      this.UserInfoSection()
 
       Row() {
         Column() {
@@ -233,58 +270,90 @@ export struct ProfileContent {
       .backgroundColor($r('app.color.white'))
       .margin({ top: 1 })
 
-      Row() {
-        Text('我的发布')
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-      }
-      .width('100%')
-      .padding(16)
-
-      if (!this.viewModel.isLoggedIn()) {
-        Column() {
-          Text('🔒')
-            .fontSize(48)
-            .margin({ bottom: 12 })
-          Text('请先登录查看发布记录')
-            .fontSize(14)
-            .fontColor($r('app.color.text_hint'))
+      Column() {
+        Row() {
+          Text('我的发布')
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
         }
         .width('100%')
-        .padding({ top: 60 })
-      } else if (this.viewModel.getMyPublishedItems().length === 0) {
+        .padding(16)
+
+        if (!this.userStore.isLoggedIn && !this.viewModel.isLoggedIn()) {
+          Column() {
+            Text('🔒')
+              .fontSize(48)
+              .margin({ bottom: 12 })
+            Text('请先登录查看发布记录')
+              .fontSize(14)
+              .fontColor($r('app.color.text_hint'))
+            Button('去登录')
+              .fontSize(14)
+              .height(36)
+              .margin({ top: 16 })
+              .backgroundColor($r('app.color.primary_color'))
+              .onClick(() => {
+                this.handleLogin();
+              })
+          }
+          .width('100%')
+          .padding({ top: 60 })
+        } else if (this.viewModel.getMyPublishedItems().length === 0) {
+          Column() {
+            Text('📝')
+              .fontSize(48)
+              .margin({ bottom: 12 })
+            Text('暂无发布记录')
+              .fontSize(14)
+              .fontColor($r('app.color.text_hint'))
+            Button('去发布')
+              .fontSize(14)
+              .height(36)
+              .margin({ top: 16 })
+              .backgroundColor($r('app.color.primary_color'))
+              .onClick(() => {
+                this.onGoPublish();
+              })
+          }
+          .width('100%')
+          .padding({ top: 60 })
+        } else {
+          Scroll() {
+            Column() {
+              ForEach(this.viewModel.getMyPublishedItems(), (item: LostFoundItem) => {
+                this.MyItemCard(item)
+              }, (item: LostFoundItem) => item.id)
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16, bottom: 20 })
+          }
+          .layoutWeight(1)
+          .scrollBar(BarState.Off)
+          .width('100%')
+        }
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .backgroundColor($r('app.color.bg_color'))
+      .margin({ top: 10 })
+
+      if (this.userStore.isLoggedIn) {
         Column() {
-          Text('📝')
-            .fontSize(48)
-            .margin({ bottom: 12 })
-          Text('暂无发布记录')
-            .fontSize(14)
-            .fontColor($r('app.color.text_hint'))
-          Button('去发布')
-            .fontSize(14)
-            .height(36)
-            .margin({ top: 16 })
-            .backgroundColor($r('app.color.primary_color'))
+          Button('退出登录')
+            .width('80%')
+            .height(44)
+            .fontSize(15)
+            .backgroundColor($r('app.color.white'))
+            .fontColor($r('app.color.lost_color'))
+            .borderRadius(22)
             .onClick(() => {
-              this.onGoPublish();
+              this.handleLogout();
             })
         }
         .width('100%')
-        .padding({ top: 60 })
-      } else {
-        Scroll() {
-          Column() {
-            ForEach(this.viewModel.getMyPublishedItems(), (item: LostFoundItem) => {
-              this.MyItemCard(item)
-            }, (item: LostFoundItem) => item.id)
-          }
-          .width('100%')
-          .padding({ left: 16, right: 16, bottom: 20 })
-        }
-        .layoutWeight(1)
-        .scrollBar(BarState.Off)
-        .width('100%')
+        .padding({ top: 10, bottom: 20 })
+        .backgroundColor($r('app.color.bg_color'))
       }
     }
     .width('100%')
