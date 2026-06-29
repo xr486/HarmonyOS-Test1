@@ -2,6 +2,10 @@ import { AppViewModel } from '../common/viewmodel/AppViewModel';
 import { LostFoundItem, ItemType, ItemStatus, formatTime, getStatusText, getCategoryName } from '../common/bean/LostFoundItem';
 import router from '@ohos.router';
 
+interface DetailPageParams {
+  id: string;
+}
+
 @Entry
 @Component
 struct DetailPage {
@@ -11,7 +15,7 @@ struct DetailPage {
   @State hasItem: boolean = false;
 
   aboutToAppear() {
-    const params = router.getParams() as Record<string, string>;
+    const params = router.getParams() as DetailPageParams;
     if (params && params.id) {
       this.itemId = params.id;
       const found = this.viewModel.getItemById(this.itemId);

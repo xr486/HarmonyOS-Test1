@@ -29,6 +29,7 @@ export struct PublishContent {
       user.id = 'user_' + Date.now();
       user.name = '校园用户';
       this.viewModel.login(user);
+      promptAction.showToast({ message: '已自动登录，可在"我的"页面管理信息' });
     }
 
     if (!this.title.trim()) {

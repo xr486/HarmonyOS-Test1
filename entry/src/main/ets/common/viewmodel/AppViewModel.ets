@@ -23,9 +23,12 @@ export class AppViewModel {
   searchKeyword: string = '';
   selectedType: ItemType = ItemType.LOST;
   selectedCategory: ItemCategory = ItemCategory.ALL;
+  dataVersion: number = 0;
 
   private constructor() {
     this.items = generateMockData();
+    AppStorage.setOrCreate('globalDataVersion', 1);
+    this.dataVersion = 1;
   }
 
   public static getInstance(): AppViewModel {
@@ -112,6 +115,8 @@ export class AppViewModel {
     newItem.publishTime = Date.now();
     newItem.status = ItemStatus.ACTIVE;
     this.items.unshift(newItem);
+    this.dataVersion++;
+    AppStorage.setOrCreate('globalDataVersion', this.dataVersion);
   }
 
   updateItem(id: string, updates: PartialLostFoundItem): void {
@@ -132,6 +137,8 @@ export class AppViewModel {
       newItem.publishTime = oldItem.publishTime;
       newItem.status = updates.status !== undefined ? updates.status : oldItem.status;
       this.items[index] = newItem;
+      this.dataVersion++;
+      AppStorage.setOrCreate('globalDataVersion', this.dataVersion);
     }
   }
 
@@ -139,6 +146,8 @@ export class AppViewModel {
     const index = this.items.findIndex((item: LostFoundItem) => item.id === id);
     if (index !== -1) {
       this.items.splice(index, 1);
+      this.dataVersion++;
+      AppStorage.setOrCreate('globalDataVersion', this.dataVersion);
     }
   }
 
@@ -146,15 +155,21 @@ export class AppViewModel {
     const item = this.getItemById(id);
     if (item) {
       item.status = item.type === ItemType.LOST ? ItemStatus.RETURNED : ItemStatus.CLAIMED;
+      this.dataVersion++;
+      AppStorage.setOrCreate('globalDataVersion', this.dataVersion);
     }
   }
 
   login(user: UserInfo): void {
     this.currentUser = user;
+    this.dataVersion++;
+    AppStorage.setOrCreate('globalDataVersion', this.dataVersion);
   }
 
   logout(): void {
     this.currentUser = null;
+    this.dataVersion++;
+    AppStorage.setOrCreate('globalDataVersion', this.dataVersion);
   }
 
   isLoggedIn(): boolean {

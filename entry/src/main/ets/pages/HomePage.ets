@@ -9,9 +9,16 @@ import router from '@ohos.router';
 export struct HomeContent {
   @State viewModel: AppViewModel = AppViewModel.getInstance();
   @State searchText: string = '';
+  @StorageLink('globalDataVersion')
+  @Watch('onDataVersionChange')
+  dataVersion: number = 0;
   private dataSource: ItemDataSource = new ItemDataSource();
 
   aboutToAppear() {
+    this.updateList();
+  }
+
+  onDataVersionChange() {
     this.updateList();
   }
 
@@ -103,8 +110,8 @@ export struct HomeContent {
       .scrollBar(BarState.Off)
       .width('100%')
 
-      Scroll() {
-        Column() {
+      List({ space: 0 }) {
+        ListItem() {
           ServiceCard({
             items: this.viewModel.getLatestItems(3),
             onItemClick: (item: LostFoundItem) => {
@@ -114,8 +121,10 @@ export struct HomeContent {
               });
             }
           })
+        }
 
-          if (this.dataSource.totalCount() === 0) {
+        if (this.dataSource.totalCount() === 0) {
+          ListItem() {
             Column() {
               Text('📭')
                 .fontSize(48)
@@ -126,32 +135,28 @@ export struct HomeContent {
             }
             .width('100%')
             .padding({ top: 60 })
-          } else {
-            List({ space: 0 }) {
-              LazyForEach(this.dataSource, (item: LostFoundItem) => {
-                ListItem() {
-                  ItemCard({
-                    item: item,
-                    onItemClick: (selectedItem: LostFoundItem) => {
-                      router.pushUrl({
-                        url: 'pages/DetailPage',
-                        params: { id: selectedItem.id }
-                      });
-                    }
-                  })
-                }
-              }, (item: LostFoundItem) => item.id)
-            }
-            .listDirection(Axis.Vertical)
-            .scrollBar(BarState.Off)
-            .width('100%')
           }
+        } else {
+          LazyForEach(this.dataSource, (item: LostFoundItem) => {
+            ListItem() {
+              ItemCard({
+                item: item,
+                onItemClick: (selectedItem: LostFoundItem) => {
+                  router.pushUrl({
+                    url: 'pages/DetailPage',
+                    params: { id: selectedItem.id }
+                  });
+                }
+              })
+            }
+          }, (item: LostFoundItem) => item.id)
         }
-        .padding({ left: 16, right: 16, bottom: 20 })
       }
+      .listDirection(Axis.Vertical)
       .scrollBar(BarState.Off)
-      .layoutWeight(1)
       .width('100%')
+      .layoutWeight(1)
+      .padding({ left: 16, right: 16, bottom: 20 })
     }
     .width('100%')
     .height('100%')

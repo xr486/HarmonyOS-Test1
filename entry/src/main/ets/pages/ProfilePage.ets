@@ -6,7 +6,37 @@ import router from '@ohos.router';
 @Component
 export struct ProfileContent {
   @State viewModel: AppViewModel = AppViewModel.getInstance();
+  @StorageLink('globalDataVersion')
+  @Watch('onDataVersionChange')
+  dataVersion: number = 0;
+  @State activeCount: number = 0;
+  @State doneCount: number = 0;
+  @State totalCount: number = 0;
   onGoPublish: () => void = () => {};
+
+  aboutToAppear() {
+    this.updateStats();
+  }
+
+  onDataVersionChange() {
+    this.updateStats();
+  }
+
+  updateStats() {
+    const items = this.viewModel.getMyPublishedItems();
+    this.totalCount = items.length;
+    let active = 0;
+    let done = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].status === ItemStatus.ACTIVE) {
+        active++;
+      } else {
+        done++;
+      }
+    }
+    this.activeCount = active;
+    this.doneCount = done;
+  }
 
   handleLogin() {
     if (!this.viewModel.isLoggedIn()) {
@@ -160,7 +190,7 @@ export struct ProfileContent {
 
       Row() {
         Column() {
-          Text(this.viewModel.isLoggedIn() ? this.viewModel.getMyPublishedItems().filter((i: LostFoundItem) => i.status === ItemStatus.ACTIVE).length.toString() : '0')
+          Text(this.activeCount.toString())
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
@@ -173,7 +203,7 @@ export struct ProfileContent {
         .alignItems(HorizontalAlign.Center)
 
         Column() {
-          Text(this.viewModel.isLoggedIn() ? this.viewModel.getMyPublishedItems().filter((i: LostFoundItem) => i.status !== ItemStatus.ACTIVE).length.toString() : '0')
+          Text(this.doneCount.toString())
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
@@ -186,7 +216,7 @@ export struct ProfileContent {
         .alignItems(HorizontalAlign.Center)
 
         Column() {
-          Text(this.viewModel.isLoggedIn() ? this.viewModel.getMyPublishedItems().length.toString() : '0')
+          Text(this.totalCount.toString())
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
