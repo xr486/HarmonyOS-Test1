@@ -1,7 +1,14 @@
 import { UserStore } from '../common/store/UserStore';
-import { LoginRequest } from '../common/model/UserModel';
+import { UserApi, LoginRequest } from '../common/api/UserApi';
+import { RouterUtil } from '../common/utils/RouterUtil';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
+
+interface LoginPageParams {
+  from?: string;
+  redirectUrl?: string;
+  redirectParams?: Record<string, Object>;
+}
 
 @Entry
 @Component
@@ -15,7 +22,20 @@ struct LoginPage {
   @State code: string = '';
   @State isLoading: boolean = false;
   @State countdown: number = 0;
+  @State redirectUrl: string = '';
+  @State redirectParams: Record<string, Object> = {};
   private timerId: number = -1;
+
+  aboutToAppear(): void {
+    const params = router.getParams() as LoginPageParams;
+    if (params) {
+      if (params.redirectUrl) {
+        this.redirectUrl = params.redirectUrl;
+        this.redirectParams = params.redirectParams || {};
+        RouterUtil.setRedirectUrl(this.redirectUrl, this.redirectParams);
+      }
+    }
+  }
 
   aboutToDisappear(): void {
     if (this.timerId !== -1) {
@@ -85,15 +105,23 @@ struct LoginPage {
         request.code = this.code.trim();
       }
 
-      const success = await this.userStore.login(request);
-      if (success) {
+      const result = await UserApi.login(request);
+      if (result.code === 200 && result.data) {
         promptAction.showToast({ message: '登录成功', duration: 2000 });
-        setTimeout(() => {
-          router.back();
+        setTimeout(async () => {
+          const redirected = await RouterUtil.redirectAfterLogin();
+          if (!redirected) {
+            router.back();
+          }
         }, 500);
+      } else {
+        if (result.message) {
+          promptAction.showToast({ message: result.message, duration: 2000 });
+        }
       }
     } catch (e) {
       console.error('[LoginPage] login error:', JSON.stringify(e));
+      promptAction.showToast({ message: '登录失败，请重试', duration: 2000 });
     } finally {
       this.isLoading = false;
     }
