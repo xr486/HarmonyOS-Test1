@@ -4,7 +4,6 @@ import { ItemDataSource } from '../common/component/ItemDataSource';
 import { ItemCard } from '../common/component/ItemCard';
 import { ServiceCard } from '../common/component/ServiceCard';
 import { ItemApi } from '../common/api/ItemApi';
-import { ItemQueryParams } from '../common/model/ItemModel';
 import { PageResult } from '../common/model/ApiResult';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
@@ -22,9 +21,12 @@ export struct HomeContent {
   @State currentPage: number = 1;
   @State pageSize: number = 20;
   @State totalCount: number = 0;
-  @State useApi: boolean = false;
+  @State useApi: boolean = true;
+  @State showError: boolean = false;
+  @State errorMessage: string = '';
   private dataSource: ItemDataSource = new ItemDataSource();
   private searchTimer: number = -1;
+  private preloadThreshold: number = 5;
 
   aboutToAppear() {
     this.loadLatestItems();
@@ -40,26 +42,13 @@ export struct HomeContent {
 
   loadLatestItems(): void {
     if (this.useApi) {
-      ItemApi.getLatestItems(3).then(result => {
-        if (result.code === 200 && result.data) {
-          const list = result.data as Array<Object>;
-          const items: LostFoundItem[] = [];
-          for (let i = 0; i < list.length; i++) {
-            const item = new LostFoundItem();
-            const obj = list[i] as Record<string, Object>;
-            item.id = obj.id as string;
-            item.type = obj.type as number as ItemType;
-            item.title = obj.title as string;
-            item.publishTime = obj.publishTime as number;
-            items.push(item);
-          }
-          this.latestItems = items;
-        }
-      }).catch(e => {
+      this.viewModel.getLatestItems(3).then((items: LostFoundItem[]) => {
+        this.latestItems = items;
+      }).catch((e: Error) => {
         console.error('[HomePage] loadLatestItems error:', JSON.stringify(e));
       });
     } else {
-      this.latestItems = this.viewModel.getLatestItems(3);
+      this.latestItems = this.viewModel.getLatestItems(3) as LostFoundItem[];
     }
   }
 
@@ -89,31 +78,21 @@ export struct HomeContent {
     this.isRefreshing = true;
     this.currentPage = 1;
     this.hasMore = true;
+    this.showError = false;
     try {
       if (this.useApi) {
-        const params: ItemQueryParams = new ItemQueryParams();
-        params.type = this.viewModel.selectedType;
-        if (this.viewModel.selectedCategory !== ItemCategory.ALL) {
-          params.category = this.viewModel.selectedCategory;
-        }
-        params.status = 0;
-        params.keyword = this.searchText.trim();
-        params.pageNum = 1;
-        params.pageSize = this.pageSize;
-
-        const result = await ItemApi.getItemList(params);
-        if (result.code === 200 && result.data) {
-          const pageData = result.data as PageResult<LostFoundItem>;
-          this.itemList = pageData.list || [];
-          this.totalCount = pageData.total || 0;
-          this.hasMore = this.itemList.length < this.totalCount;
-        } else {
-          this.itemList = [];
-          this.hasMore = false;
-          if (result.message) {
-            promptAction.showToast({ message: result.message, duration: 2000 });
-          }
-        }
+        const result = await this.viewModel.getItemList(
+          this.viewModel.selectedType,
+          this.viewModel.selectedCategory === ItemCategory.ALL ? undefined : this.viewModel.selectedCategory,
+          0,
+          this.searchText.trim(),
+          1,
+          this.pageSize,
+          true
+        );
+        this.itemList = result.list;
+        this.totalCount = result.total;
+        this.hasMore = result.hasMore;
       } else {
         this.viewModel.searchKeyword = this.searchText;
         this.itemList = this.viewModel.getFilteredItems();
@@ -123,7 +102,8 @@ export struct HomeContent {
       this.dataSource.setData(this.itemList);
     } catch (e) {
       console.error('[HomePage] refreshList error:', JSON.stringify(e));
-      promptAction.showToast({ message: '加载失败，请重试', duration: 2000 });
+      this.showError = true;
+      this.errorMessage = '加载失败，请下拉重试';
     } finally {
       this.isRefreshing = false;
     }
@@ -135,28 +115,23 @@ export struct HomeContent {
     this.isLoadingMore = true;
     this.currentPage++;
     try {
-      const params: ItemQueryParams = new ItemQueryParams();
-      params.type = this.viewModel.selectedType;
-      if (this.viewModel.selectedCategory !== ItemCategory.ALL) {
-        params.category = this.viewModel.selectedCategory;
-      }
-      params.status = 0;
-      params.keyword = this.searchText.trim();
-      params.pageNum = this.currentPage;
-      params.pageSize = this.pageSize;
-
-      const result = await ItemApi.getItemList(params);
-      if (result.code === 200 && result.data) {
-        const pageData = result.data as PageResult<LostFoundItem>;
-        const newItems = pageData.list || [];
-        this.itemList = this.itemList.concat(newItems);
-        this.totalCount = pageData.total || 0;
-        this.hasMore = this.itemList.length < this.totalCount && newItems.length > 0;
-        this.dataSource.setData(this.itemList);
-      }
+      const result = await this.viewModel.getItemList(
+        this.viewModel.selectedType,
+        this.viewModel.selectedCategory === ItemCategory.ALL ? undefined : this.viewModel.selectedCategory,
+        0,
+        this.searchText.trim(),
+        this.currentPage,
+        this.pageSize,
+        false
+      );
+      this.itemList = result.list;
+      this.totalCount = result.total;
+      this.hasMore = result.hasMore;
+      this.dataSource.setData(this.itemList);
     } catch (e) {
       console.error('[HomePage] loadMore error:', JSON.stringify(e));
       this.currentPage--;
+      promptAction.showToast({ message: '加载更多失败', duration: 2000 });
     } finally {
       this.isLoadingMore = false;
     }
@@ -166,6 +141,17 @@ export struct HomeContent {
     if (this.useApi && this.hasMore && !this.isLoadingMore) {
       this.loadMore();
     }
+  }
+
+  onScrollIndex(index: number): void {
+    if (!this.useApi || !this.hasMore || this.isLoadingMore) return;
+    if (index >= this.itemList.length - this.preloadThreshold) {
+      this.loadMore();
+    }
+  }
+
+  onRetry(): void {
+    this.refreshList();
   }
 
   @Builder
@@ -207,6 +193,11 @@ export struct HomeContent {
   LoadingFooter() {
     Row() {
       if (this.isLoadingMore) {
+        Progress({ value: 0, total: 100, type: ProgressType.Circular })
+          .width(16)
+          .height(16)
+          .color($r('app.color.primary_color'))
+          .margin({ right: 8 })
         Text('加载中...')
           .fontSize(13)
           .fontColor($r('app.color.text_hint'))
@@ -247,6 +238,31 @@ export struct HomeContent {
     .backgroundColor($r('app.color.white'))
     .borderRadius($r('app.float.card_radius'))
     .margin({ bottom: 10 })
+  }
+
+  @Builder
+  ErrorView() {
+    Column() {
+      Text('📭')
+        .fontSize(48)
+        .margin({ bottom: 12 })
+      Text(this.errorMessage || '加载失败')
+        .fontSize(14)
+        .fontColor($r('app.color.text_hint'))
+        .margin({ bottom: 16 })
+      Button('重试')
+        .fontSize(14)
+        .backgroundColor($r('app.color.primary_color'))
+        .fontColor(Color.White)
+        .borderRadius(20)
+        .height(36)
+        .padding({ left: 24, right: 24 })
+        .onClick(() => {
+          this.onRetry();
+        })
+    }
+    .width('100%')
+    .padding({ top: 60 })
   }
 
   build() {
@@ -307,6 +323,12 @@ export struct HomeContent {
         }
         .layoutWeight(1)
         .width('100%')
+      } else if (this.showError && this.itemList.length === 0) {
+        Scroll() {
+          this.ErrorView()
+        }
+        .layoutWeight(1)
+        .width('100%')
       } else {
         List({ space: 0 }) {
           ListItem() {
@@ -321,7 +343,7 @@ export struct HomeContent {
             })
           }
 
-          if (this.itemList.length === 0) {
+          if (this.itemList.length === 0 && !this.isRefreshing) {
             ListItem() {
               Column() {
                 Text('📭')
@@ -363,6 +385,9 @@ export struct HomeContent {
         .padding({ left: 16, right: 16, bottom: 20 })
         .onReachEnd(() => {
           this.onReachBottom();
+        })
+        .onScrollIndex((first: number, last: number) => {
+          this.onScrollIndex(last);
         })
         .onScroll((_xOffset: number, yOffset: number) => {
           if (yOffset < -80 && !this.isRefreshing) {

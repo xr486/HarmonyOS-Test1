@@ -32,6 +32,9 @@ export class LostFoundItem {
   publisherId: string = '';
   publisherName: string = '';
   status: ItemStatus = ItemStatus.ACTIVE;
+  viewCount: number = 0;
+  isMine: boolean = false;
+  updateTime: number = 0;
 }
 
 export function getCategoryName(category: ItemCategory): string {
