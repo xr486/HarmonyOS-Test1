@@ -1,6 +1,8 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { TokenUtil } from '../common/utils/TokenUtil';
+import { UserStore } from '../common/store/UserStore';
 
 const DOMAIN = 0x0000;
 
@@ -10,6 +12,12 @@ export default class EntryAbility extends UIAbility {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
+    }
+    try {
+      TokenUtil.getInstance().init(this.context);
+      UserStore.getInstance().init();
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to init stores. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
