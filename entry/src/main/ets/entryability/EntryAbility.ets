@@ -8,7 +8,7 @@ import router from '@ohos.router';
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
-  private launchWant: Want | null = null;
+  launchWant: Want = new Want();
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     this.launchWant = want;
@@ -19,7 +19,7 @@ export default class EntryAbility extends UIAbility {
     }
     try {
       TokenUtil.getInstance().init(this.context);
-      UserStore.getInstance().init(this.context);
+      UserStore.getInstance().init();
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to init stores. Cause: %{public}s', JSON.stringify(err));
     }

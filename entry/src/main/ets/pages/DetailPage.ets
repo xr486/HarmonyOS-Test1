@@ -49,7 +49,7 @@ struct DetailPage {
           }
         }
       } else {
-        const found = this.viewModel.getItemById(this.itemId);
+        const found = await this.viewModel.getItemById(this.itemId);
         if (found) {
           this.item = found;
           this.hasItem = true;
@@ -167,16 +167,7 @@ struct DetailPage {
         }
         .index(0)
         .autoPlay(false)
-        .indicator(
-          new SwiperDigitalIndicator()
-            .itemWidth(6)
-            .itemHeight(6)
-            .selectedItemWidth(12)
-            .selectedItemHeight(6)
-            .itemColor(Color.White)
-            .selectedItemColor($r('app.color.primary_color'))
-            .bottom(16)
-        )
+        .indicator(true)
         .loop(false)
         .width('100%')
         .height(240)

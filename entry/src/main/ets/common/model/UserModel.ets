@@ -24,3 +24,8 @@ export class LoginRequest {
   phone: string = '';
   code: string = '';
 }
+
+export class UpdatePasswordRequest {
+  oldPassword: string = '';
+  newPassword: string = '';
+}

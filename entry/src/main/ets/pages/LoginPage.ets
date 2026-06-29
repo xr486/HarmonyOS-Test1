@@ -1,5 +1,6 @@
 import { UserStore } from '../common/store/UserStore';
-import { UserApi, LoginRequest } from '../common/api/UserApi';
+import { UserApi } from '../common/api/UserApi';
+import { LoginRequest } from '../common/model/UserModel';
 import { RouterUtil } from '../common/utils/RouterUtil';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';

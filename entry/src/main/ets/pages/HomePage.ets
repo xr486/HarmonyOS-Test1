@@ -41,15 +41,11 @@ export struct HomeContent {
   }
 
   loadLatestItems(): void {
-    if (this.useApi) {
-      this.viewModel.getLatestItems(3).then((items: LostFoundItem[]) => {
-        this.latestItems = items;
-      }).catch((e: Error) => {
-        console.error('[HomePage] loadLatestItems error:', JSON.stringify(e));
-      });
-    } else {
-      this.latestItems = this.viewModel.getLatestItems(3) as LostFoundItem[];
-    }
+    this.viewModel.getLatestItems(3).then((items: LostFoundItem[]) => {
+      this.latestItems = items;
+    }).catch((e: Error) => {
+      console.error('[HomePage] loadLatestItems error:', JSON.stringify(e));
+    });
   }
 
   onSearchInput(value: string): void {
@@ -193,7 +189,7 @@ export struct HomeContent {
   LoadingFooter() {
     Row() {
       if (this.isLoadingMore) {
-        Progress({ value: 0, total: 100, type: ProgressType.Circular })
+        LoadingProgress()
           .width(16)
           .height(16)
           .color($r('app.color.primary_color'))

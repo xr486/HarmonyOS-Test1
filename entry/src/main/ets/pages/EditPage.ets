@@ -3,7 +3,7 @@ import { ItemType, ItemCategory, LostFoundItem } from '../common/bean/LostFoundI
 import { UserStore } from '../common/store/UserStore';
 import { ItemApi } from '../common/api/ItemApi';
 import { UploadApi } from '../common/api/UploadApi';
-import { UpdateItemRequest } from '../common/model/ItemModel';
+import { PublishItemRequest } from '../common/model/ItemModel';
 import promptAction from '@ohos.promptAction';
 import router from '@ohos.router';
 
@@ -62,7 +62,7 @@ struct EditPage {
           router.back();
         }
       } else {
-        const item = this.viewModel.getItemById(this.itemId);
+        const item = await this.viewModel.getItemById(this.itemId);
         if (item) {
           this.selectedType = item.type;
           this.selectedCategory = item.category;
@@ -167,15 +167,14 @@ struct EditPage {
       const validImages: string[] = this.images.filter((url: string) => url && url.length > 0);
 
       if (this.useApi) {
-        const request: UpdateItemRequest = {
-          type: this.selectedType,
-          category: this.selectedCategory,
-          title: this.title.trim(),
-          description: this.description.trim(),
-          location: this.location.trim(),
-          contact: this.contact.trim(),
-          images: validImages
-        };
+        const request: PublishItemRequest = new PublishItemRequest();
+        request.type = this.selectedType;
+        request.category = this.selectedCategory;
+        request.title = this.title.trim();
+        request.description = this.description.trim();
+        request.location = this.location.trim();
+        request.contact = this.contact.trim();
+        request.images = validImages;
 
         const result = await ItemApi.updateItem(this.itemId, request);
         if (result.code === 200) {
@@ -187,7 +186,7 @@ struct EditPage {
           }
         }
       } else {
-        const item = this.viewModel.getItemById(this.itemId);
+        const item = await this.viewModel.getItemById(this.itemId);
         if (item) {
           item.type = this.selectedType;
           item.category = this.selectedCategory;
@@ -196,7 +195,6 @@ struct EditPage {
           item.location = this.location.trim();
           item.contact = this.contact.trim();
           item.images = validImages;
-          item.updateTime = Date.now();
         }
         promptAction.showToast({ message: '更新成功', duration: 2000 });
         router.back();
@@ -214,7 +212,7 @@ struct EditPage {
     Stack() {
       if (this.uploadingImages[index]) {
         Column() {
-          Progress({ value: 0, total: 100, type: ProgressType.Circular })
+          LoadingProgress()
             .width(24)
             .height(24)
             .color($r('app.color.primary_color'))
@@ -258,7 +256,7 @@ struct EditPage {
   @Builder
   LoadingView() {
     Column() {
-      Progress({ value: 0, total: 100, type: ProgressType.Circular })
+      LoadingProgress()
         .width(48)
         .height(48)
         .color($r('app.color.primary_color'))

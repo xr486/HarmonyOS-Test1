@@ -67,11 +67,12 @@ export struct ProfileContent {
           this.calculateStats();
         }
       } else {
-        const items = this.viewModel.getMyPublishedItems();
+        const result = await this.viewModel.getMyPublishedItems();
+        const items = result.list;
         if (isRefresh) {
           this.myItems = items;
         }
-        this.totalCount = items.length;
+        this.totalCount = result.total;
         this.hasMore = false;
         this.calculateStats();
       }

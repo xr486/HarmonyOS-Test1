@@ -6,17 +6,10 @@ import promptAction from '@ohos.promptAction';
 const BASE_URL = 'http://localhost:8080/api/v1';
 const DEFAULT_TIMEOUT: number = 15000;
 
-export enum HttpMethod {
-  GET = http.RequestMethod.GET,
-  POST = http.RequestMethod.POST,
-  PUT = http.RequestMethod.PUT,
-  DELETE = http.RequestMethod.DELETE
-}
-
 export interface RequestOptions {
   url: string;
-  method: HttpMethod;
-  data?: object;
+  method: http.RequestMethod;
+  data?: Object;
   params?: Record<string, string | number | boolean>;
   needAuth?: boolean;
   showLoading?: boolean;
@@ -130,8 +123,8 @@ export class HttpUtil {
 
   async request<T>(options: RequestOptions): Promise<ApiResult<T>> {
     const url: string = options.url;
-    const method: HttpMethod = options.method;
-    const data: object | undefined = options.data;
+    const method: http.RequestMethod = options.method;
+    const data: Object | undefined = options.data;
     const params: Record<string, string | number | boolean> | undefined = options.params;
     const needAuth: boolean = options.needAuth ?? false;
     const showError: boolean = options.showError ?? true;
@@ -144,7 +137,7 @@ export class HttpUtil {
       const fullUrl: string = this.buildUrl(url, params);
       const headers: Record<string, string> = this.buildHeaders(needAuth);
 
-      console.log('[HttpUtil] request:', method, fullUrl);
+      console.info('[HttpUtil] request:', fullUrl);
 
       const response: http.HttpResponse = await httpRequest.request(fullUrl, {
         method: method,
@@ -177,25 +170,25 @@ export class HttpUtil {
   get<T>(url: string, params?: Record<string, string | number | boolean>, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
       url: url,
-      method: HttpMethod.GET,
+      method: http.RequestMethod.GET,
       params: params,
       needAuth: needAuth
     });
   }
 
-  post<T>(url: string, data?: object, needAuth: boolean = false): Promise<ApiResult<T>> {
+  post<T>(url: string, data?: Object, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
       url: url,
-      method: HttpMethod.POST,
+      method: http.RequestMethod.POST,
       data: data,
       needAuth: needAuth
     });
   }
 
-  put<T>(url: string, data?: object, needAuth: boolean = false): Promise<ApiResult<T>> {
+  put<T>(url: string, data?: Object, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
       url: url,
-      method: HttpMethod.PUT,
+      method: http.RequestMethod.PUT,
       data: data,
       needAuth: needAuth
     });
@@ -204,7 +197,7 @@ export class HttpUtil {
   delete<T>(url: string, params?: Record<string, string | number | boolean>, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
       url: url,
-      method: HttpMethod.DELETE,
+      method: http.RequestMethod.DELETE,
       params: params,
       needAuth: needAuth
     });

@@ -234,9 +234,8 @@ export struct PublishContent {
   ImageCard(index: number) {
     Stack() {
       if (this.uploadingImages[index]) {
-        // 上传中状态
         Column() {
-          Progress({ value: 0, total: 100, type: ProgressType.Circular })
+          LoadingProgress()
             .width(24)
             .height(24)
             .color($r('app.color.primary_color'))
