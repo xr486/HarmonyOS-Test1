@@ -4,6 +4,15 @@ import { LostFoundItem, ItemType, ItemStatus, formatTime, getStatusText } from '
 export struct ItemCard {
   item: LostFoundItem = new LostFoundItem();
   onItemClick: (item: LostFoundItem) => void = (_item: LostFoundItem) => {};
+  @State showImage: boolean = false;
+
+  hasImage(): boolean {
+    return this.item.images && this.item.images.length > 0 && this.item.images[0].length > 0;
+  }
+
+  aboutToAppear(): void {
+    this.showImage = true;
+  }
 
   build() {
     Column() {
@@ -45,30 +54,68 @@ export struct ItemCard {
       .width('100%')
       .alignItems(VerticalAlign.Center)
 
-      Text(this.item.description)
-        .fontSize(14)
-        .fontColor($r('app.color.text_secondary'))
-        .maxLines(2)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .margin({ top: 8 })
-        .width('100%')
-        .textAlign(TextAlign.Start)
-
       Row() {
-        Row() {
-          Text('📍')
-            .fontSize(12)
-          Text(this.item.location)
-            .fontSize(12)
-            .fontColor($r('app.color.text_hint'))
-            .margin({ left: 2 })
+        Column() {
+          Text(this.item.description)
+            .fontSize(14)
+            .fontColor($r('app.color.text_secondary'))
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+            .textAlign(TextAlign.Start)
+
+          Row() {
+            Row() {
+              Text('📍')
+                .fontSize(12)
+              Text(this.item.location)
+                .fontSize(12)
+                .fontColor($r('app.color.text_hint'))
+                .margin({ left: 2 })
+            }
+
+            Blank()
+
+            Text(formatTime(this.item.publishTime))
+              .fontSize(12)
+              .fontColor($r('app.color.text_hint'))
+          }
+          .width('100%')
+          .margin({ top: 8 })
         }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
 
-        Blank()
-
-        Text(formatTime(this.item.publishTime))
-          .fontSize(12)
-          .fontColor($r('app.color.text_hint'))
+        if (this.hasImage()) {
+          if (this.showImage) {
+            Image(this.item.images[0])
+              .width(72)
+              .height(72)
+              .objectFit(ImageFit.Cover)
+              .borderRadius(8)
+              .margin({ left: 12 })
+              .alt('📷')
+              .onError(() => {
+                console.error('[ItemCard] image load error:', this.item.images[0]);
+              })
+              .animation({
+                duration: 300,
+                curve: Curve.EaseInOut
+              })
+          } else {
+            Column() {
+              Text('📷')
+                .fontSize(24)
+                .opacity(0.3)
+            }
+            .width(72)
+            .height(72)
+            .backgroundColor($r('app.color.bg_color'))
+            .borderRadius(8)
+            .margin({ left: 12 })
+            .justifyContent(FlexAlign.Center)
+          }
+        }
       }
       .width('100%')
       .margin({ top: 8 })

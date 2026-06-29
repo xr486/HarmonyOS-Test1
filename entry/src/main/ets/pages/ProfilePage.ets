@@ -1,34 +1,99 @@
 import { AppViewModel } from '../common/viewmodel/AppViewModel';
 import { LostFoundItem, ItemStatus, formatTime, getStatusText } from '../common/bean/LostFoundItem';
-import { UserInfo } from '../common/bean/UserInfo';
+import { UserStore } from '../common/store/UserStore';
+import { ItemApi } from '../common/api/ItemApi';
+import { PageResult } from '../common/model/ApiResult';
 import router from '@ohos.router';
+import promptAction from '@ohos.promptAction';
 
 @Component
 export struct ProfileContent {
   @State viewModel: AppViewModel = AppViewModel.getInstance();
-  @StorageLink('globalDataVersion')
-  @Watch('onDataVersionChange')
-  dataVersion: number = 0;
+  @State userStore: UserStore = UserStore.getInstance();
+  @State myItems: LostFoundItem[] = [];
   @State activeCount: number = 0;
   @State doneCount: number = 0;
   @State totalCount: number = 0;
+  @State isLoading: boolean = false;
+  @State isLoadingMore: boolean = false;
+  @State hasMore: boolean = true;
+  @State currentPage: number = 1;
+  @State pageSize: number = 20;
+  @State useApi: boolean = false;
   onGoPublish: () => void = () => {};
 
   aboutToAppear() {
-    this.updateStats();
+    this.loadMyItems();
   }
 
-  onDataVersionChange() {
-    this.updateStats();
+  onPageShow() {
+    if (this.userStore.isLoggedIn) {
+      this.loadMyItems();
+    }
   }
 
-  updateStats() {
-    const items = this.viewModel.getMyPublishedItems();
-    this.totalCount = items.length;
+  async loadMyItems(isRefresh: boolean = true): Promise<void> {
+    if (!this.userStore.isLoggedIn && !this.viewModel.isLoggedIn()) {
+      this.myItems = [];
+      this.activeCount = 0;
+      this.doneCount = 0;
+      this.totalCount = 0;
+      return;
+    }
+
+    if (isRefresh) {
+      this.isLoading = true;
+      this.currentPage = 1;
+      this.hasMore = true;
+    } else {
+      if (this.isLoadingMore || !this.hasMore) return;
+      this.isLoadingMore = true;
+      this.currentPage++;
+    }
+
+    try {
+      if (this.useApi && this.userStore.isLoggedIn) {
+        const result = await ItemApi.getMyItems(-1, this.currentPage, this.pageSize);
+        if (result.code === 200 && result.data) {
+          const pageData = result.data as PageResult<LostFoundItem>;
+          const list = pageData.list || [];
+          if (isRefresh) {
+            this.myItems = list;
+          } else {
+            this.myItems = this.myItems.concat(list);
+          }
+          this.totalCount = pageData.total || 0;
+          this.hasMore = this.myItems.length < this.totalCount && list.length > 0;
+          this.calculateStats();
+        }
+      } else {
+        const items = this.viewModel.getMyPublishedItems();
+        if (isRefresh) {
+          this.myItems = items;
+        }
+        this.totalCount = items.length;
+        this.hasMore = false;
+        this.calculateStats();
+      }
+    } catch (e) {
+      console.error('[ProfilePage] loadMyItems error:', JSON.stringify(e));
+      if (!isRefresh) {
+        this.currentPage--;
+      }
+    } finally {
+      if (isRefresh) {
+        this.isLoading = false;
+      } else {
+        this.isLoadingMore = false;
+      }
+    }
+  }
+
+  calculateStats(): void {
     let active = 0;
     let done = 0;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].status === ItemStatus.ACTIVE) {
+    for (let i = 0; i < this.myItems.length; i++) {
+      if (this.myItems[i].status === ItemStatus.ACTIVE) {
         active++;
       } else {
         done++;
@@ -39,16 +104,79 @@ export struct ProfileContent {
   }
 
   handleLogin() {
-    if (!this.viewModel.isLoggedIn()) {
-      const user: UserInfo = new UserInfo();
-      user.id = 'user_' + Date.now();
-      user.name = '校园用户';
-      this.viewModel.login(user);
-    }
+    router.pushUrl({
+      url: 'pages/LoginPage'
+    });
   }
 
   handleLogout() {
+    this.userStore.logout();
     this.viewModel.logout();
+    this.myItems = [];
+    this.activeCount = 0;
+    this.doneCount = 0;
+    this.totalCount = 0;
+    promptAction.showToast({ message: '已退出登录', duration: 2000 });
+  }
+
+  goEditProfile() {
+    router.pushUrl({
+      url: 'pages/EditProfilePage'
+    });
+  }
+
+  async handleMarkResolved(item: LostFoundItem): Promise<void> {
+    if (this.useApi) {
+      if (!this.userStore.isLoggedIn) {
+        promptAction.showToast({ message: '请先登录', duration: 2000 });
+        router.pushUrl({ url: 'pages/LoginPage' });
+        return;
+      }
+      try {
+        const result = await ItemApi.resolveItem(item.id);
+        if (result.code === 200) {
+          promptAction.showToast({ message: '操作成功', duration: 2000 });
+          this.loadMyItems(true);
+        } else {
+          if (result.message) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } catch (e) {
+        console.error('[ProfilePage] markResolved error:', JSON.stringify(e));
+        promptAction.showToast({ message: '操作失败，请重试', duration: 2000 });
+      }
+    } else {
+      this.viewModel.markAsResolved(item.id);
+      this.loadMyItems(true);
+    }
+  }
+
+  async handleRemoveItem(item: LostFoundItem): Promise<void> {
+    if (this.useApi) {
+      if (!this.userStore.isLoggedIn) {
+        promptAction.showToast({ message: '请先登录', duration: 2000 });
+        router.pushUrl({ url: 'pages/LoginPage' });
+        return;
+      }
+      try {
+        const result = await ItemApi.deleteItem(item.id);
+        if (result.code === 200) {
+          promptAction.showToast({ message: '已下架', duration: 2000 });
+          this.loadMyItems(true);
+        } else {
+          if (result.message) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } catch (e) {
+        console.error('[ProfilePage] removeItem error:', JSON.stringify(e));
+        promptAction.showToast({ message: '操作失败，请重试', duration: 2000 });
+      }
+    } else {
+      this.viewModel.removeItem(item.id);
+      this.loadMyItems(true);
+    }
   }
 
   @Builder
@@ -105,14 +233,14 @@ export struct ProfileContent {
               .fontColor($r('app.color.primary_color'))
               .margin({ left: 12 })
               .onClick(() => {
-                this.viewModel.markAsResolved(item.id);
+                this.handleMarkResolved(item);
               })
             Text('下架')
               .fontSize(12)
               .fontColor($r('app.color.lost_color'))
               .margin({ left: 12 })
               .onClick(() => {
-                this.viewModel.removeItem(item.id);
+                this.handleRemoveItem(item);
               })
           }
         }
@@ -135,58 +263,87 @@ export struct ProfileContent {
     })
   }
 
-  build() {
+  @Builder
+  UserInfoSection() {
     Column() {
-      Column() {
+      Row() {
         Column() {
           Text('👤')
-            .fontSize(48)
+            .fontSize(32)
         }
-        .width(80)
-        .height(80)
+        .width(64)
+        .height(64)
         .backgroundColor($r('app.color.primary_light'))
-        .borderRadius(40)
+        .borderRadius(32)
         .justifyContent(FlexAlign.Center)
-        .margin({ bottom: 12 })
+        .margin({ right: 16 })
 
-        if (this.viewModel.isLoggedIn()) {
-          Text(this.viewModel.currentUser!.name)
-            .fontSize(18)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary'))
-            .margin({ bottom: 6 })
-          Text('欢迎使用校园失物招领')
-            .fontSize(13)
-            .fontColor($r('app.color.text_hint'))
-            .margin({ bottom: 16 })
-          Button('退出登录')
-            .fontSize(13)
-            .height(32)
-            .backgroundColor($r('app.color.bg_color'))
-            .fontColor($r('app.color.text_secondary'))
-            .onClick(() => {
-              this.handleLogout();
-            })
-        } else {
-          Text('点击登录')
-            .fontSize(18)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary'))
-            .margin({ bottom: 6 })
-            .onClick(() => {
-              this.handleLogin();
-            })
-          Text('登录后可发布和管理信息')
-            .fontSize(13)
-            .fontColor($r('app.color.text_hint'))
-            .margin({ bottom: 16 })
+        Column() {
+          if (this.userStore.isLoggedIn && this.userStore.userInfo) {
+            Text(this.userStore.userInfo.name)
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+            if (this.userStore.userInfo.studentId) {
+              Text('学号：' + this.userStore.userInfo.studentId)
+                .fontSize(13)
+                .fontColor($r('app.color.text_hint'))
+                .margin({ top: 4 })
+            }
+          } else if (this.viewModel.isLoggedIn() && this.viewModel.currentUser) {
+            Text(this.viewModel.currentUser.name)
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+          } else {
+            Text('点击登录')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+          }
         }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+
+        Text(' >')
+          .fontSize(16)
+          .fontColor($r('app.color.text_hint'))
       }
       .width('100%')
-      .padding({ top: 30, bottom: 20 })
-      .backgroundColor($r('app.color.white'))
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
+      .padding(16)
+      .onClick(() => {
+        if (this.userStore.isLoggedIn || this.viewModel.isLoggedIn()) {
+          this.goEditProfile();
+        } else {
+          this.handleLogin();
+        }
+      })
+    }
+    .width('100%')
+    .backgroundColor($r('app.color.white'))
+  }
+
+  @Builder
+  LoadingFooter() {
+    Row() {
+      if (this.isLoadingMore) {
+        Text('加载中...')
+          .fontSize(13)
+          .fontColor($r('app.color.text_hint'))
+      } else if (!this.hasMore && this.myItems.length > 0) {
+        Text('— 没有更多了 —')
+          .fontSize(13)
+          .fontColor($r('app.color.text_hint'))
+      }
+    }
+    .width('100%')
+    .padding({ top: 16, bottom: 16 })
+    .justifyContent(FlexAlign.Center)
+  }
+
+  build() {
+    Column() {
+      this.UserInfoSection()
 
       Row() {
         Column() {
@@ -233,58 +390,100 @@ export struct ProfileContent {
       .backgroundColor($r('app.color.white'))
       .margin({ top: 1 })
 
-      Row() {
-        Text('我的发布')
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-      }
-      .width('100%')
-      .padding(16)
+      Column() {
+        Row() {
+          Text('我的发布')
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+        }
+        .width('100%')
+        .padding(16)
 
-      if (!this.viewModel.isLoggedIn()) {
-        Column() {
-          Text('🔒')
-            .fontSize(48)
-            .margin({ bottom: 12 })
-          Text('请先登录查看发布记录')
-            .fontSize(14)
-            .fontColor($r('app.color.text_hint'))
-        }
-        .width('100%')
-        .padding({ top: 60 })
-      } else if (this.viewModel.getMyPublishedItems().length === 0) {
-        Column() {
-          Text('📝')
-            .fontSize(48)
-            .margin({ bottom: 12 })
-          Text('暂无发布记录')
-            .fontSize(14)
-            .fontColor($r('app.color.text_hint'))
-          Button('去发布')
-            .fontSize(14)
-            .height(36)
-            .margin({ top: 16 })
-            .backgroundColor($r('app.color.primary_color'))
-            .onClick(() => {
-              this.onGoPublish();
-            })
-        }
-        .width('100%')
-        .padding({ top: 60 })
-      } else {
-        Scroll() {
+        if (!this.userStore.isLoggedIn && !this.viewModel.isLoggedIn()) {
           Column() {
-            ForEach(this.viewModel.getMyPublishedItems(), (item: LostFoundItem) => {
-              this.MyItemCard(item)
+            Text('🔒')
+              .fontSize(48)
+              .margin({ bottom: 12 })
+            Text('请先登录查看发布记录')
+              .fontSize(14)
+              .fontColor($r('app.color.text_hint'))
+            Button('去登录')
+              .fontSize(14)
+              .height(36)
+              .margin({ top: 16 })
+              .backgroundColor($r('app.color.primary_color'))
+              .onClick(() => {
+                this.handleLogin();
+              })
+          }
+          .width('100%')
+          .padding({ top: 60 })
+        } else if (this.myItems.length === 0 && !this.isLoading) {
+          Column() {
+            Text('📝')
+              .fontSize(48)
+              .margin({ bottom: 12 })
+            Text('暂无发布记录')
+              .fontSize(14)
+              .fontColor($r('app.color.text_hint'))
+            Button('去发布')
+              .fontSize(14)
+              .height(36)
+              .margin({ top: 16 })
+              .backgroundColor($r('app.color.primary_color'))
+              .onClick(() => {
+                this.onGoPublish();
+              })
+          }
+          .width('100%')
+          .padding({ top: 60 })
+        } else {
+          List() {
+            ForEach(this.myItems, (item: LostFoundItem) => {
+              ListItem() {
+                this.MyItemCard(item)
+              }
             }, (item: LostFoundItem) => item.id)
+
+            if (this.useApi && (this.isLoadingMore || this.hasMore || this.myItems.length > 0)) {
+              ListItem() {
+                this.LoadingFooter()
+              }
+            }
           }
           .width('100%')
           .padding({ left: 16, right: 16, bottom: 20 })
+          .layoutWeight(1)
+          .scrollBar(BarState.Off)
+          .onReachEnd(() => {
+            if (this.useApi && this.hasMore && !this.isLoadingMore) {
+              this.loadMyItems(false);
+            }
+          })
         }
-        .layoutWeight(1)
-        .scrollBar(BarState.Off)
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .backgroundColor($r('app.color.bg_color'))
+      .margin({ top: 10 })
+
+      if (this.userStore.isLoggedIn || this.viewModel.isLoggedIn()) {
+        Column() {
+          Button('退出登录')
+            .width('80%')
+            .height(44)
+            .fontSize(15)
+            .backgroundColor($r('app.color.white'))
+            .fontColor($r('app.color.lost_color'))
+            .borderRadius(22)
+            .onClick(() => {
+              this.handleLogout();
+            })
+        }
         .width('100%')
+        .padding({ top: 10, bottom: 20 })
+        .backgroundColor($r('app.color.bg_color'))
       }
     }
     .width('100%')
