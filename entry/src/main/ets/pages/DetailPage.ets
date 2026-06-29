@@ -21,6 +21,8 @@ struct DetailPage {
   @State isMine: boolean = false;
   @State viewCount: number = 0;
   @State useApi: boolean = false;
+  @State currentImageIndex: number = 0;
+  @State showImagePreview: boolean = false;
 
   aboutToAppear() {
     const params = router.getParams() as DetailPageParams;
@@ -126,6 +128,10 @@ struct DetailPage {
     }
   }
 
+  hasImages(): boolean {
+    return this.item.images && this.item.images.length > 0;
+  }
+
   @Builder
   LoadingView() {
     Column() {
@@ -139,6 +145,148 @@ struct DetailPage {
     .backgroundColor($r('app.color.bg_color'))
   }
 
+  @Builder
+  ImageCarousel() {
+    if (this.hasImages()) {
+      Stack() {
+        Swiper() {
+          ForEach(this.item.images, (imageUrl: string, index: number) => {
+            Image(imageUrl)
+              .width('100%')
+              .height(240)
+              .objectFit(ImageFit.Cover)
+              .onClick(() => {
+                this.currentImageIndex = index;
+                this.showImagePreview = true;
+              })
+              .alt('📷')
+              .onError(() => {
+                console.error('[DetailPage] image load error:', imageUrl);
+              })
+          }, (imageUrl: string, index: number) => index.toString())
+        }
+        .index(0)
+        .autoPlay(false)
+        .indicator(
+          new SwiperDigitalIndicator()
+            .itemWidth(6)
+            .itemHeight(6)
+            .selectedItemWidth(12)
+            .selectedItemHeight(6)
+            .itemColor(Color.White)
+            .selectedItemColor($r('app.color.primary_color'))
+            .bottom(16)
+        )
+        .loop(false)
+        .width('100%')
+        .height(240)
+
+        Row() {
+          Text(this.item.type === ItemType.LOST ? '寻物启事' : '失物招领')
+            .fontSize(13)
+            .fontColor(Color.White)
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .backgroundColor(this.item.type === ItemType.LOST ? $r('app.color.lost_color') : $r('app.color.found_color'))
+            .borderRadius(4)
+            .margin({ right: 8 })
+
+          Text(getStatusText(this.item.status, this.item.type))
+            .fontSize(12)
+            .fontColor(this.item.status === ItemStatus.ACTIVE ? $r('app.color.status_active_text') : $r('app.color.status_done_text'))
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .backgroundColor(this.item.status === ItemStatus.ACTIVE ? $r('app.color.status_active_bg') : $r('app.color.status_done_bg'))
+            .borderRadius(4)
+        }
+        .position({ x: 16, y: 16 })
+      }
+      .width('100%')
+    } else {
+      Stack() {
+        Column() {
+          Text('📷')
+            .fontSize(64)
+        }
+        .width('100%')
+        .height(240)
+        .backgroundColor($r('app.color.primary_light'))
+        .justifyContent(FlexAlign.Center)
+
+        Row() {
+          Text(this.item.type === ItemType.LOST ? '寻物启事' : '失物招领')
+            .fontSize(13)
+            .fontColor(Color.White)
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .backgroundColor(this.item.type === ItemType.LOST ? $r('app.color.lost_color') : $r('app.color.found_color'))
+            .borderRadius(4)
+            .margin({ right: 8 })
+
+          Text(getStatusText(this.item.status, this.item.type))
+            .fontSize(12)
+            .fontColor(this.item.status === ItemStatus.ACTIVE ? $r('app.color.status_active_text') : $r('app.color.status_done_text'))
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .backgroundColor(this.item.status === ItemStatus.ACTIVE ? $r('app.color.status_active_bg') : $r('app.color.status_done_bg'))
+            .borderRadius(4)
+        }
+        .position({ x: 16, y: 16 })
+      }
+      .width('100%')
+    }
+  }
+
+  @Builder
+  ImagePreviewSheet() {
+    Column() {
+      Row() {
+        Text('关闭')
+          .fontSize(16)
+          .fontColor(Color.White)
+          .onClick(() => {
+            this.showImagePreview = false;
+          })
+      }
+      .width('100%')
+      .padding(16)
+      .justifyContent(FlexAlign.End)
+
+      if (this.hasImages()) {
+        Swiper() {
+          ForEach(this.item.images, (imageUrl: string, index: number) => {
+            Image(imageUrl)
+              .width('100%')
+              .objectFit(ImageFit.Contain)
+              .alt('📷')
+              .onError(() => {
+                console.error('[DetailPage] preview image load error:', imageUrl);
+              })
+          }, (imageUrl: string, index: number) => index.toString())
+        }
+        .index(this.currentImageIndex)
+        .autoPlay(false)
+        .indicator(
+          new SwiperDigitalIndicator()
+            .itemWidth(6)
+            .itemHeight(6)
+            .selectedItemWidth(12)
+            .selectedItemHeight(6)
+            .itemColor(Color.White)
+            .selectedItemColor($r('app.color.primary_color'))
+            .bottom(20)
+        )
+        .loop(false)
+        .layoutWeight(1)
+
+        Text(`${this.currentImageIndex + 1} / ${this.item.images.length}`)
+          .fontSize(14)
+          .fontColor(Color.White)
+          .textAlign(TextAlign.Center)
+          .margin({ bottom: 20 })
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(Color.Black)
+  }
+
   build() {
     Navigation() {
       if (this.isLoading) {
@@ -146,35 +294,7 @@ struct DetailPage {
       } else if (this.hasItem) {
         Scroll() {
           Column() {
-            Stack() {
-              Column() {
-                Text('📷')
-                  .fontSize(64)
-              }
-              .width('100%')
-              .height(240)
-              .backgroundColor($r('app.color.primary_light'))
-              .justifyContent(FlexAlign.Center)
-
-              Row() {
-                Text(this.item.type === ItemType.LOST ? '寻物启事' : '失物招领')
-                  .fontSize(13)
-                  .fontColor(Color.White)
-                  .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                  .backgroundColor(this.item.type === ItemType.LOST ? $r('app.color.lost_color') : $r('app.color.found_color'))
-                  .borderRadius(4)
-                  .margin({ right: 8 })
-
-                Text(getStatusText(this.item.status, this.item.type))
-                  .fontSize(12)
-                  .fontColor(this.item.status === ItemStatus.ACTIVE ? $r('app.color.status_active_text') : $r('app.color.status_done_text'))
-                  .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                  .backgroundColor(this.item.status === ItemStatus.ACTIVE ? $r('app.color.status_active_bg') : $r('app.color.status_done_bg'))
-                  .borderRadius(4)
-              }
-              .position({ x: 16, y: 16 })
-            }
-            .width('100%')
+            this.ImageCarousel()
 
             Column() {
               Text(this.item.title)
@@ -284,6 +404,40 @@ struct DetailPage {
             .margin({ top: 10 })
             .alignItems(HorizontalAlign.Start)
 
+            if (this.hasImages()) {
+              Column() {
+                Text('图片预览')
+                  .fontSize(15)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.text_primary'))
+                  .width('100%')
+                  .margin({ bottom: 10 })
+                
+                Row({ space: 8 }) {
+                  ForEach(this.item.images, (imageUrl: string, index: number) => {
+                    Image(imageUrl)
+                      .width(70)
+                      .height(70)
+                      .objectFit(ImageFit.Cover)
+                      .borderRadius(8)
+                      .onClick(() => {
+                        this.currentImageIndex = index;
+                        this.showImagePreview = true;
+                      })
+                      .alt('📷')
+                      .onError(() => {
+                        console.error('[DetailPage] thumbnail load error:', imageUrl);
+                      })
+                  }, (imageUrl: string, index: number) => index.toString())
+                }
+              }
+              .width('100%')
+              .padding(16)
+              .backgroundColor($r('app.color.white'))
+              .margin({ top: 10 })
+              .alignItems(HorizontalAlign.Start)
+            }
+
             if (this.item.status === ItemStatus.ACTIVE) {
               Column() {
                 Button(this.item.type === ItemType.LOST ? '我找到了' : '我要认领')
@@ -336,6 +490,13 @@ struct DetailPage {
         .height('100%')
         .backgroundColor($r('app.color.bg_color'))
         .scrollBar(BarState.Off)
+        .bindSheet($$this.showImagePreview, this.ImagePreviewSheet(), {
+          height: '100%',
+          backgroundColor: Color.Black,
+          onDisappear: () => {
+            this.showImagePreview = false;
+          }
+        })
       } else {
         Column() {
           Text('信息不存在或已被删除')

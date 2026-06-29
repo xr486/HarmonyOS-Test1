@@ -3,9 +3,11 @@ import { ItemType, ItemCategory } from '../common/bean/LostFoundItem';
 import { UserInfo } from '../common/bean/UserInfo';
 import { UserStore } from '../common/store/UserStore';
 import { ItemApi } from '../common/api/ItemApi';
+import { UploadApi, UploadResult } from '../common/api/UploadApi';
 import { PublishItemRequest } from '../common/model/ItemModel';
 import promptAction from '@ohos.promptAction';
 import router from '@ohos.router';
+import picker from '@ohos.file.picker';
 
 @Component
 export struct PublishContent {
@@ -18,6 +20,7 @@ export struct PublishContent {
   @State location: string = '';
   @State contact: string = '';
   @State images: string[] = [];
+  @State uploadingImages: boolean[] = [];
   @State showCategoryPicker: boolean = false;
   @State isPublishing: boolean = false;
   @State useApi: boolean = false;
@@ -25,13 +28,99 @@ export struct PublishContent {
 
   private categories: string[] = ['证件卡片', '数码产品', '衣物服饰', '书籍文具', '其他物品'];
   private categoryValues: ItemCategory[] = [ItemCategory.CARD, ItemCategory.DIGITAL, ItemCategory.CLOTHING, ItemCategory.BOOK, ItemCategory.OTHER];
+  private maxImages: number = 9;
 
   getCategoryName(): string {
     return this.categories[this.categoryValues.indexOf(this.selectedCategory)];
   }
 
+  /**
+   * 选择图片
+   */
+  async selectImages(): Promise<void> {
+    if (this.images.length >= this.maxImages) {
+      promptAction.showToast({ message: '最多添加9张图片', duration: 2000 });
+      return;
+    }
+
+    try {
+      const photoSelectOptions: picker.PhotoSelectOptions = new picker.PhotoSelectOptions();
+      photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
+      photoSelectOptions.maxSelectNumber = this.maxImages - this.images.length;
+      
+      const photoPicker: picker.PhotoViewPicker = new picker.PhotoViewPicker();
+      const photoSelectResult: picker.PhotoSelectResult = await photoPicker.select(photoSelectOptions);
+      
+      if (photoSelectResult.photoUris && photoSelectResult.photoUris.length > 0) {
+        for (let i = 0; i < photoSelectResult.photoUris.length; i++) {
+          const uri: string = photoSelectResult.photoUris[i];
+          await this.uploadImage(uri);
+        }
+      }
+    } catch (e) {
+      console.error('[PublishPage] selectImages error:', JSON.stringify(e));
+      // 如果选择器不可用，使用模拟模式
+      if (this.images.length < this.maxImages) {
+        this.images.push(`https://cdn.campus-lostandfound.com/items/mock_${Date.now()}.jpg`);
+        promptAction.showToast({ message: '已添加模拟图片', duration: 1500 });
+      }
+    }
+  }
+
+  /**
+   * 上传单张图片
+   */
+  async uploadImage(uri: string): Promise<void> {
+    const tempIndex: number = this.images.length;
+    this.images.push('');
+    this.uploadingImages.push(true);
+
+    try {
+      if (this.useApi && this.userStore.isLoggedIn) {
+        const result = await UploadApi.uploadImageSimple(uri, 'item');
+        if (result.code === 200 && result.data) {
+          this.images[tempIndex] = result.data.url;
+          this.uploadingImages[tempIndex] = false;
+        } else {
+          // 上传失败，移除占位
+          this.images.splice(tempIndex, 1);
+          this.uploadingImages.splice(tempIndex, 1);
+          promptAction.showToast({ message: result.message || '上传失败', duration: 2000 });
+        }
+      } else {
+        // 不使用API时，使用模拟URL
+        this.images[tempIndex] = `https://cdn.campus-lostandfound.com/items/mock_${Date.now()}.jpg`;
+        this.uploadingImages[tempIndex] = false;
+      }
+    } catch (e) {
+      console.error('[PublishPage] uploadImage error:', JSON.stringify(e));
+      // 上传失败，移除占位
+      this.images.splice(tempIndex, 1);
+      this.uploadingImages.splice(tempIndex, 1);
+      promptAction.showToast({ message: '上传失败，请重试', duration: 2000 });
+    }
+  }
+
+  /**
+   * 删除图片
+   */
+  removeImage(index: number): void {
+    if (index >= 0 && index < this.images.length) {
+      this.images.splice(index, 1);
+      this.uploadingImages.splice(index, 1);
+    }
+  }
+
   async handlePublish(): Promise<void> {
     if (this.isPublishing) return;
+
+    // 检查是否有正在上传的图片
+    for (let i = 0; i < this.uploadingImages.length; i++) {
+      if (this.uploadingImages[i]) {
+        promptAction.showToast({ message: '请等待图片上传完成', duration: 2000 });
+        return;
+      }
+    }
 
     if (this.useApi) {
       if (!this.userStore.isLoggedIn) {
@@ -84,6 +173,9 @@ export struct PublishContent {
 
     this.isPublishing = true;
     try {
+      // 过滤掉空URL的图片
+      const validImages: string[] = this.images.filter((url: string) => url && url.length > 0);
+
       if (this.useApi) {
         const request: PublishItemRequest = new PublishItemRequest();
         request.type = this.selectedType;
@@ -92,7 +184,7 @@ export struct PublishContent {
         request.description = this.description.trim();
         request.location = this.location.trim();
         request.contact = this.contact.trim();
-        request.images = this.images;
+        request.images = validImages;
 
         const result = await ItemApi.publishItem(request);
         if (result.code === 200) {
@@ -112,7 +204,7 @@ export struct PublishContent {
         newItem.description = this.description.trim();
         newItem.location = this.location.trim();
         newItem.contact = this.contact.trim();
-        newItem.images = this.images;
+        newItem.images = validImages;
         newItem.publisherId = this.viewModel.currentUser!.id;
         newItem.publisherName = this.viewModel.currentUser!.name;
 
@@ -135,6 +227,59 @@ export struct PublishContent {
     this.location = '';
     this.contact = '';
     this.images = [];
+    this.uploadingImages = [];
+  }
+
+  @Builder
+  ImageCard(index: number) {
+    Stack() {
+      if (this.uploadingImages[index]) {
+        // 上传中状态
+        Column() {
+          Progress({ value: 0, total: 100, type: ProgressType.Circular })
+            .width(24)
+            .height(24)
+            .color($r('app.color.primary_color'))
+        }
+        .width(70)
+        .height(70)
+        .backgroundColor($r('app.color.bg_color'))
+        .borderRadius(8)
+        .justifyContent(FlexAlign.Center)
+      } else {
+        // 已完成上传
+        Column() {
+          Image(this.images[index])
+            .width(70)
+            .height(70)
+            .objectFit(ImageFit.Cover)
+            .borderRadius(8)
+            .alt('📷')
+            .onError(() => {
+              console.error('[PublishPage] image load error:', this.images[index]);
+            })
+        }
+        .width(70)
+        .height(70)
+        .backgroundColor($r('app.color.bg_color'))
+        .borderRadius(8)
+        .justifyContent(FlexAlign.Center)
+      }
+      
+      // 删除按钮
+      Text('×')
+        .fontSize(16)
+        .fontColor(Color.White)
+        .backgroundColor(Color.Black)
+        .borderRadius(10)
+        .width(20)
+        .height(20)
+        .textAlign(TextAlign.Center)
+        .position({ x: 52, y: 0 })
+        .onClick(() => {
+          this.removeImage(index);
+        })
+    }
   }
 
   build() {
@@ -200,7 +345,7 @@ export struct PublishContent {
             .maxLength(50)
             .onChange((value: string) => {
               this.title = value;
-            }
+            })
         }
         .width('100%')
         .margin({ bottom: 16 })
@@ -265,37 +410,22 @@ export struct PublishContent {
         .alignItems(HorizontalAlign.Start)
 
         Column() {
-          Text('添加图片')
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ bottom: 8 })
+          Row() {
+            Text('添加图片')
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+            Text(`（最多${this.maxImages}张）`)
+              .fontSize(12)
+              .fontColor($r('app.color.text_hint'))
+          }
+          .margin({ bottom: 8 })
+          
           Row({ space: 8 }) {
             ForEach(this.images, (_img: string, index: number) => {
-              Stack() {
-                Column() {
-                  Text('📷')
-                    .fontSize(28)
-                }
-                .width(70)
-                .height(70)
-                .backgroundColor($r('app.color.bg_color'))
-                .borderRadius(8)
-                .justifyContent(FlexAlign.Center)
-                Text('×')
-                  .fontSize(16)
-                  .fontColor(Color.White)
-                  .backgroundColor(Color.Black)
-                  .borderRadius(10)
-                  .width(20)
-                  .height(20)
-                  .textAlign(TextAlign.Center)
-                  .position({ x: 52, y: 0 })
-                  .onClick(() => {
-                    this.images.splice(index, 1);
-                  })
-              }
+              this.ImageCard(index)
             }, (_img: string, index: number) => index.toString())
-            if (this.images.length < 9) {
+            
+            if (this.images.length < this.maxImages) {
               Column() {
                 Text('+')
                   .fontSize(28)
@@ -308,7 +438,7 @@ export struct PublishContent {
               .border({ width: 1, color: $r('app.color.divider_color'), style: BorderStyle.Dashed })
               .justifyContent(FlexAlign.Center)
               .onClick(() => {
-                this.images.push('');
+                this.selectImages();
               })
             }
           }
