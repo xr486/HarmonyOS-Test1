@@ -135,6 +135,30 @@
     {
       "name": "latest_info",
       "value": "最新动态"
+    },
+    {
+      "name": "form_name_2x2",
+      "value": "失物招领(小)"
+    },
+    {
+      "name": "form_desc_2x2",
+      "value": "显示最新2条失物招领信息"
+    },
+    {
+      "name": "form_name_2x4",
+      "value": "失物招领(中)"
+    },
+    {
+      "name": "form_desc_2x4",
+      "value": "显示最新4条失物招领信息及搜索入口"
+    },
+    {
+      "name": "form_name_4x4",
+      "value": "失物招领(大)"
+    },
+    {
+      "name": "form_desc_4x4",
+      "value": "分类浏览、搜索、发布快捷入口"
     }
   ]
 }

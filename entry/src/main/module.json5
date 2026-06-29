@@ -45,6 +45,18 @@
             "resource": "$profile:backup_config"
           }
         ],
+      },
+      {
+        "name": "LostFoundFormAbility",
+        "srcEntry": "./ets/formability/LostFoundFormAbility.ets",
+        "type": "form",
+        "exported": true,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ]
       }
     ]
   }
