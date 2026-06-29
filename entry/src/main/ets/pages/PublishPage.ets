@@ -1,11 +1,16 @@
 import { AppViewModel, NewLostFoundItem } from '../common/viewmodel/AppViewModel';
 import { ItemType, ItemCategory } from '../common/bean/LostFoundItem';
 import { UserInfo } from '../common/bean/UserInfo';
+import { UserStore } from '../common/store/UserStore';
+import { ItemApi } from '../common/api/ItemApi';
+import { PublishItemRequest } from '../common/model/ItemModel';
 import promptAction from '@ohos.promptAction';
+import router from '@ohos.router';
 
 @Component
 export struct PublishContent {
   @State viewModel: AppViewModel = AppViewModel.getInstance();
+  @State userStore: UserStore = UserStore.getInstance();
   @State selectedType: ItemType = ItemType.LOST;
   @State selectedCategory: ItemCategory = ItemCategory.CARD;
   @State title: string = '';
@@ -14,6 +19,8 @@ export struct PublishContent {
   @State contact: string = '';
   @State images: string[] = [];
   @State showCategoryPicker: boolean = false;
+  @State isPublishing: boolean = false;
+  @State useApi: boolean = false;
   onPublished: () => void = () => {};
 
   private categories: string[] = ['证件卡片', '数码产品', '衣物服饰', '书籍文具', '其他物品'];
@@ -23,53 +30,111 @@ export struct PublishContent {
     return this.categories[this.categoryValues.indexOf(this.selectedCategory)];
   }
 
-  handlePublish() {
-    if (!this.viewModel.isLoggedIn()) {
-      const user: UserInfo = new UserInfo();
-      user.id = 'user_' + Date.now();
-      user.name = '校园用户';
-      this.viewModel.login(user);
-      promptAction.showToast({ message: '已自动登录，可在"我的"页面管理信息' });
+  async handlePublish(): Promise<void> {
+    if (this.isPublishing) return;
+
+    if (this.useApi) {
+      if (!this.userStore.isLoggedIn) {
+        promptAction.showToast({ message: '请先登录', duration: 2000 });
+        router.pushUrl({ url: 'pages/LoginPage' });
+        return;
+      }
+    } else {
+      if (!this.viewModel.isLoggedIn()) {
+        const user: UserInfo = new UserInfo();
+        user.id = 'user_' + Date.now();
+        user.name = '校园用户';
+        this.viewModel.login(user);
+        promptAction.showToast({ message: '已自动登录，可在"我的"页面管理信息', duration: 2000 });
+      }
     }
 
     if (!this.title.trim()) {
-      promptAction.showToast({ message: '请输入物品名称' });
+      promptAction.showToast({ message: '请输入物品名称', duration: 2000 });
+      return;
+    }
+    if (this.title.trim().length < 2 || this.title.trim().length > 50) {
+      promptAction.showToast({ message: '物品名称2-50字', duration: 2000 });
       return;
     }
     if (!this.description.trim()) {
-      promptAction.showToast({ message: '请输入物品描述' });
+      promptAction.showToast({ message: '请输入物品描述', duration: 2000 });
+      return;
+    }
+    if (this.description.trim().length < 10 || this.description.trim().length > 500) {
+      promptAction.showToast({ message: '物品描述10-500字', duration: 2000 });
       return;
     }
     if (!this.location.trim()) {
-      promptAction.showToast({ message: '请输入地点' });
+      promptAction.showToast({ message: '请输入地点', duration: 2000 });
+      return;
+    }
+    if (this.location.trim().length < 2 || this.location.trim().length > 100) {
+      promptAction.showToast({ message: '地点2-100字', duration: 2000 });
       return;
     }
     if (!this.contact.trim()) {
-      promptAction.showToast({ message: '请输入联系方式' });
+      promptAction.showToast({ message: '请输入联系方式', duration: 2000 });
+      return;
+    }
+    if (this.contact.trim().length < 2 || this.contact.trim().length > 50) {
+      promptAction.showToast({ message: '联系方式2-50字', duration: 2000 });
       return;
     }
 
-    const newItem: NewLostFoundItem = new NewLostFoundItem();
-    newItem.type = this.selectedType;
-    newItem.category = this.selectedCategory;
-    newItem.title = this.title.trim();
-    newItem.description = this.description.trim();
-    newItem.location = this.location.trim();
-    newItem.contact = this.contact.trim();
-    newItem.images = this.images;
-    newItem.publisherId = this.viewModel.currentUser!.id;
-    newItem.publisherName = this.viewModel.currentUser!.name;
+    this.isPublishing = true;
+    try {
+      if (this.useApi) {
+        const request: PublishItemRequest = new PublishItemRequest();
+        request.type = this.selectedType;
+        request.category = this.selectedCategory;
+        request.title = this.title.trim();
+        request.description = this.description.trim();
+        request.location = this.location.trim();
+        request.contact = this.contact.trim();
+        request.images = this.images;
 
-    this.viewModel.addItem(newItem);
+        const result = await ItemApi.publishItem(request);
+        if (result.code === 200) {
+          promptAction.showToast({ message: '发布成功', duration: 2000 });
+          this.resetForm();
+          this.onPublished();
+        } else {
+          if (result.message) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } else {
+        const newItem: NewLostFoundItem = new NewLostFoundItem();
+        newItem.type = this.selectedType;
+        newItem.category = this.selectedCategory;
+        newItem.title = this.title.trim();
+        newItem.description = this.description.trim();
+        newItem.location = this.location.trim();
+        newItem.contact = this.contact.trim();
+        newItem.images = this.images;
+        newItem.publisherId = this.viewModel.currentUser!.id;
+        newItem.publisherName = this.viewModel.currentUser!.name;
 
+        this.viewModel.addItem(newItem);
+        this.resetForm();
+        promptAction.showToast({ message: '发布成功', duration: 2000 });
+        this.onPublished();
+      }
+    } catch (e) {
+      console.error('[PublishPage] publish error:', JSON.stringify(e));
+      promptAction.showToast({ message: '发布失败，请重试', duration: 2000 });
+    } finally {
+      this.isPublishing = false;
+    }
+  }
+
+  resetForm(): void {
     this.title = '';
     this.description = '';
     this.location = '';
     this.contact = '';
     this.images = [];
-
-    promptAction.showToast({ message: '发布成功' });
-    this.onPublished();
   }
 
   build() {
@@ -127,14 +192,15 @@ export struct PublishContent {
             .fontSize(14)
             .fontColor($r('app.color.text_secondary'))
             .margin({ bottom: 8 })
-          TextInput({ placeholder: '请输入物品名称', text: this.title })
+          TextInput({ placeholder: '请输入物品名称（2-50字）', text: this.title })
             .width('100%')
             .backgroundColor($r('app.color.bg_color'))
             .borderRadius(8)
             .padding(12)
+            .maxLength(50)
             .onChange((value: string) => {
               this.title = value;
-            })
+            }
         }
         .width('100%')
         .margin({ bottom: 16 })
@@ -145,12 +211,13 @@ export struct PublishContent {
             .fontSize(14)
             .fontColor($r('app.color.text_secondary'))
             .margin({ bottom: 8 })
-          TextArea({ placeholder: '请详细描述物品特征、丢失/拾取时间等', text: this.description })
+          TextArea({ placeholder: '请详细描述物品特征、丢失/拾取时间等（10-500字）', text: this.description })
             .width('100%')
             .backgroundColor($r('app.color.bg_color'))
             .borderRadius(8)
             .padding(12)
             .height(100)
+            .maxLength(500)
             .onChange((value: string) => {
               this.description = value;
             })
@@ -164,11 +231,12 @@ export struct PublishContent {
             .fontSize(14)
             .fontColor($r('app.color.text_secondary'))
             .margin({ bottom: 8 })
-          TextInput({ placeholder: '请输入丢失/拾取地点', text: this.location })
+          TextInput({ placeholder: '请输入丢失/拾取地点（2-100字）', text: this.location })
             .width('100%')
             .backgroundColor($r('app.color.bg_color'))
             .borderRadius(8)
             .padding(12)
+            .maxLength(100)
             .onChange((value: string) => {
               this.location = value;
             })
@@ -182,11 +250,12 @@ export struct PublishContent {
             .fontSize(14)
             .fontColor($r('app.color.text_secondary'))
             .margin({ bottom: 8 })
-          TextInput({ placeholder: '请输入手机号/微信/QQ等联系方式', text: this.contact })
+          TextInput({ placeholder: '请输入手机号/微信/QQ等联系方式（2-50字）', text: this.contact })
             .width('100%')
             .backgroundColor($r('app.color.bg_color'))
             .borderRadius(8)
             .padding(12)
+            .maxLength(50)
             .onChange((value: string) => {
               this.contact = value;
             })
@@ -226,7 +295,7 @@ export struct PublishContent {
                   })
               }
             }, (_img: string, index: number) => index.toString())
-            if (this.images.length < 3) {
+            if (this.images.length < 9) {
               Column() {
                 Text('+')
                   .fontSize(28)
@@ -248,12 +317,13 @@ export struct PublishContent {
         .margin({ bottom: 24 })
         .alignItems(HorizontalAlign.Start)
 
-        Button('立即发布')
+        Button(this.isPublishing ? '发布中...' : '立即发布')
           .width('100%')
           .height(48)
           .fontSize(16)
-          .backgroundColor($r('app.color.primary_color'))
+          .backgroundColor(!this.isPublishing ? $r('app.color.primary_color') : $r('app.color.divider_color'))
           .borderRadius(24)
+          .enabled(!this.isPublishing)
           .onClick(() => {
             this.handlePublish();
           })

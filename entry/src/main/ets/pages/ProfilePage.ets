@@ -1,6 +1,8 @@
 import { AppViewModel } from '../common/viewmodel/AppViewModel';
 import { LostFoundItem, ItemStatus, formatTime, getStatusText } from '../common/bean/LostFoundItem';
 import { UserStore } from '../common/store/UserStore';
+import { ItemApi } from '../common/api/ItemApi';
+import { PageResult } from '../common/model/ApiResult';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 
@@ -8,29 +10,90 @@ import promptAction from '@ohos.promptAction';
 export struct ProfileContent {
   @State viewModel: AppViewModel = AppViewModel.getInstance();
   @State userStore: UserStore = UserStore.getInstance();
-  @StorageLink('globalDataVersion')
-  @Watch('onDataVersionChange')
-  dataVersion: number = 0;
+  @State myItems: LostFoundItem[] = [];
   @State activeCount: number = 0;
   @State doneCount: number = 0;
   @State totalCount: number = 0;
+  @State isLoading: boolean = false;
+  @State isLoadingMore: boolean = false;
+  @State hasMore: boolean = true;
+  @State currentPage: number = 1;
+  @State pageSize: number = 20;
+  @State useApi: boolean = false;
   onGoPublish: () => void = () => {};
 
   aboutToAppear() {
-    this.updateStats();
+    this.loadMyItems();
   }
 
-  onDataVersionChange() {
-    this.updateStats();
+  onPageShow() {
+    if (this.userStore.isLoggedIn) {
+      this.loadMyItems();
+    }
   }
 
-  updateStats() {
-    const items = this.viewModel.getMyPublishedItems();
-    this.totalCount = items.length;
+  async loadMyItems(isRefresh: boolean = true): Promise<void> {
+    if (!this.userStore.isLoggedIn && !this.viewModel.isLoggedIn()) {
+      this.myItems = [];
+      this.activeCount = 0;
+      this.doneCount = 0;
+      this.totalCount = 0;
+      return;
+    }
+
+    if (isRefresh) {
+      this.isLoading = true;
+      this.currentPage = 1;
+      this.hasMore = true;
+    } else {
+      if (this.isLoadingMore || !this.hasMore) return;
+      this.isLoadingMore = true;
+      this.currentPage++;
+    }
+
+    try {
+      if (this.useApi && this.userStore.isLoggedIn) {
+        const result = await ItemApi.getMyItems(-1, this.currentPage, this.pageSize);
+        if (result.code === 200 && result.data) {
+          const pageData = result.data as PageResult<LostFoundItem>;
+          const list = pageData.list || [];
+          if (isRefresh) {
+            this.myItems = list;
+          } else {
+            this.myItems = this.myItems.concat(list);
+          }
+          this.totalCount = pageData.total || 0;
+          this.hasMore = this.myItems.length < this.totalCount && list.length > 0;
+          this.calculateStats();
+        }
+      } else {
+        const items = this.viewModel.getMyPublishedItems();
+        if (isRefresh) {
+          this.myItems = items;
+        }
+        this.totalCount = items.length;
+        this.hasMore = false;
+        this.calculateStats();
+      }
+    } catch (e) {
+      console.error('[ProfilePage] loadMyItems error:', JSON.stringify(e));
+      if (!isRefresh) {
+        this.currentPage--;
+      }
+    } finally {
+      if (isRefresh) {
+        this.isLoading = false;
+      } else {
+        this.isLoadingMore = false;
+      }
+    }
+  }
+
+  calculateStats(): void {
     let active = 0;
     let done = 0;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].status === ItemStatus.ACTIVE) {
+    for (let i = 0; i < this.myItems.length; i++) {
+      if (this.myItems[i].status === ItemStatus.ACTIVE) {
         active++;
       } else {
         done++;
@@ -49,6 +112,10 @@ export struct ProfileContent {
   handleLogout() {
     this.userStore.logout();
     this.viewModel.logout();
+    this.myItems = [];
+    this.activeCount = 0;
+    this.doneCount = 0;
+    this.totalCount = 0;
     promptAction.showToast({ message: '已退出登录', duration: 2000 });
   }
 
@@ -56,6 +123,60 @@ export struct ProfileContent {
     router.pushUrl({
       url: 'pages/EditProfilePage'
     });
+  }
+
+  async handleMarkResolved(item: LostFoundItem): Promise<void> {
+    if (this.useApi) {
+      if (!this.userStore.isLoggedIn) {
+        promptAction.showToast({ message: '请先登录', duration: 2000 });
+        router.pushUrl({ url: 'pages/LoginPage' });
+        return;
+      }
+      try {
+        const result = await ItemApi.resolveItem(item.id);
+        if (result.code === 200) {
+          promptAction.showToast({ message: '操作成功', duration: 2000 });
+          this.loadMyItems(true);
+        } else {
+          if (result.message) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } catch (e) {
+        console.error('[ProfilePage] markResolved error:', JSON.stringify(e));
+        promptAction.showToast({ message: '操作失败，请重试', duration: 2000 });
+      }
+    } else {
+      this.viewModel.markAsResolved(item.id);
+      this.loadMyItems(true);
+    }
+  }
+
+  async handleRemoveItem(item: LostFoundItem): Promise<void> {
+    if (this.useApi) {
+      if (!this.userStore.isLoggedIn) {
+        promptAction.showToast({ message: '请先登录', duration: 2000 });
+        router.pushUrl({ url: 'pages/LoginPage' });
+        return;
+      }
+      try {
+        const result = await ItemApi.deleteItem(item.id);
+        if (result.code === 200) {
+          promptAction.showToast({ message: '已下架', duration: 2000 });
+          this.loadMyItems(true);
+        } else {
+          if (result.message) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } catch (e) {
+        console.error('[ProfilePage] removeItem error:', JSON.stringify(e));
+        promptAction.showToast({ message: '操作失败，请重试', duration: 2000 });
+      }
+    } else {
+      this.viewModel.removeItem(item.id);
+      this.loadMyItems(true);
+    }
   }
 
   @Builder
@@ -112,14 +233,14 @@ export struct ProfileContent {
               .fontColor($r('app.color.primary_color'))
               .margin({ left: 12 })
               .onClick(() => {
-                this.viewModel.markAsResolved(item.id);
+                this.handleMarkResolved(item);
               })
             Text('下架')
               .fontSize(12)
               .fontColor($r('app.color.lost_color'))
               .margin({ left: 12 })
               .onClick(() => {
-                this.viewModel.removeItem(item.id);
+                this.handleRemoveItem(item);
               })
           }
         }
@@ -169,6 +290,11 @@ export struct ProfileContent {
                 .fontColor($r('app.color.text_hint'))
                 .margin({ top: 4 })
             }
+          } else if (this.viewModel.isLoggedIn() && this.viewModel.currentUser) {
+            Text(this.viewModel.currentUser.name)
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
           } else {
             Text('点击登录')
               .fontSize(18)
@@ -186,7 +312,7 @@ export struct ProfileContent {
       .width('100%')
       .padding(16)
       .onClick(() => {
-        if (this.userStore.isLoggedIn) {
+        if (this.userStore.isLoggedIn || this.viewModel.isLoggedIn()) {
           this.goEditProfile();
         } else {
           this.handleLogin();
@@ -198,27 +324,21 @@ export struct ProfileContent {
   }
 
   @Builder
-  MenuItem(icon: string, title: string, showArrow: boolean = true, onClick: () => void = () => {}) {
+  LoadingFooter() {
     Row() {
-      Text(icon)
-        .fontSize(18)
-        .margin({ right: 12 })
-      Text(title)
-        .fontSize(15)
-        .fontColor($r('app.color.text_primary'))
-        .layoutWeight(1)
-      if (showArrow) {
-        Text('>')
-          .fontSize(14)
+      if (this.isLoadingMore) {
+        Text('加载中...')
+          .fontSize(13)
+          .fontColor($r('app.color.text_hint'))
+      } else if (!this.hasMore && this.myItems.length > 0) {
+        Text('— 没有更多了 —')
+          .fontSize(13)
           .fontColor($r('app.color.text_hint'))
       }
     }
     .width('100%')
-    .height(52)
-    .padding({ left: 16, right: 16 })
-    .onClick(() => {
-      onClick();
-    })
+    .padding({ top: 16, bottom: 16 })
+    .justifyContent(FlexAlign.Center)
   }
 
   build() {
@@ -299,7 +419,7 @@ export struct ProfileContent {
           }
           .width('100%')
           .padding({ top: 60 })
-        } else if (this.viewModel.getMyPublishedItems().length === 0) {
+        } else if (this.myItems.length === 0 && !this.isLoading) {
           Column() {
             Text('📝')
               .fontSize(48)
@@ -319,18 +439,28 @@ export struct ProfileContent {
           .width('100%')
           .padding({ top: 60 })
         } else {
-          Scroll() {
-            Column() {
-              ForEach(this.viewModel.getMyPublishedItems(), (item: LostFoundItem) => {
+          List() {
+            ForEach(this.myItems, (item: LostFoundItem) => {
+              ListItem() {
                 this.MyItemCard(item)
-              }, (item: LostFoundItem) => item.id)
+              }
+            }, (item: LostFoundItem) => item.id)
+
+            if (this.useApi && (this.isLoadingMore || this.hasMore || this.myItems.length > 0)) {
+              ListItem() {
+                this.LoadingFooter()
+              }
             }
-            .width('100%')
-            .padding({ left: 16, right: 16, bottom: 20 })
           }
+          .width('100%')
+          .padding({ left: 16, right: 16, bottom: 20 })
           .layoutWeight(1)
           .scrollBar(BarState.Off)
-          .width('100%')
+          .onReachEnd(() => {
+            if (this.useApi && this.hasMore && !this.isLoadingMore) {
+              this.loadMyItems(false);
+            }
+          })
         }
       }
       .width('100%')
@@ -338,7 +468,7 @@ export struct ProfileContent {
       .backgroundColor($r('app.color.bg_color'))
       .margin({ top: 10 })
 
-      if (this.userStore.isLoggedIn) {
+      if (this.userStore.isLoggedIn || this.viewModel.isLoggedIn()) {
         Column() {
           Button('退出登录')
             .width('80%')

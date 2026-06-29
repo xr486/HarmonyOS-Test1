@@ -1,6 +1,9 @@
 import { AppViewModel } from '../common/viewmodel/AppViewModel';
 import { LostFoundItem, ItemType, ItemStatus, formatTime, getStatusText, getCategoryName } from '../common/bean/LostFoundItem';
+import { UserStore } from '../common/store/UserStore';
+import { ItemApi } from '../common/api/ItemApi';
 import router from '@ohos.router';
+import promptAction from '@ohos.promptAction';
 
 interface DetailPageParams {
   id: string;
@@ -10,25 +13,137 @@ interface DetailPageParams {
 @Component
 struct DetailPage {
   @State viewModel: AppViewModel = AppViewModel.getInstance();
+  @State userStore: UserStore = UserStore.getInstance();
   @State itemId: string = '';
   @State item: LostFoundItem = new LostFoundItem();
   @State hasItem: boolean = false;
+  @State isLoading: boolean = true;
+  @State isMine: boolean = false;
+  @State viewCount: number = 0;
+  @State useApi: boolean = false;
 
   aboutToAppear() {
     const params = router.getParams() as DetailPageParams;
     if (params && params.id) {
       this.itemId = params.id;
-      const found = this.viewModel.getItemById(this.itemId);
-      if (found) {
-        this.item = found;
-        this.hasItem = true;
-      }
+      this.loadDetail();
     }
+  }
+
+  async loadDetail(): Promise<void> {
+    this.isLoading = true;
+    try {
+      if (this.useApi) {
+        const result = await ItemApi.getItemDetail(this.itemId);
+        if (result.code === 200 && result.data) {
+          this.item = result.data as LostFoundItem;
+          this.hasItem = true;
+          this.isMine = (result.data as LostFoundItem).isMine || false;
+          this.viewCount = (result.data as LostFoundItem).viewCount || 0;
+        } else {
+          this.hasItem = false;
+          if (result.message && result.code !== 404) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } else {
+        const found = this.viewModel.getItemById(this.itemId);
+        if (found) {
+          this.item = found;
+          this.hasItem = true;
+          this.isMine = this.viewModel.isLoggedIn() && this.viewModel.currentUser?.id === found.publisherId;
+          this.viewCount = 0;
+        } else {
+          this.hasItem = false;
+        }
+      }
+    } catch (e) {
+      console.error('[DetailPage] loadDetail error:', JSON.stringify(e));
+      this.hasItem = false;
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  async handleResolve(): Promise<void> {
+    if (this.useApi) {
+      if (!this.userStore.isLoggedIn) {
+        promptAction.showToast({ message: '请先登录', duration: 2000 });
+        router.pushUrl({ url: 'pages/LoginPage' });
+        return;
+      }
+      try {
+        const result = await ItemApi.resolveItem(this.itemId);
+        if (result.code === 200) {
+          promptAction.showToast({ message: '操作成功', duration: 2000 });
+          this.loadDetail();
+        } else {
+          if (result.message) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } catch (e) {
+        console.error('[DetailPage] resolve error:', JSON.stringify(e));
+        promptAction.showToast({ message: '操作失败，请重试', duration: 2000 });
+      }
+    } else {
+      this.viewModel.markAsResolved(this.itemId);
+      const updated = this.viewModel.getItemById(this.itemId);
+      if (updated) {
+        this.item = updated;
+      }
+      promptAction.showToast({ message: '操作成功', duration: 2000 });
+    }
+  }
+
+  async handleRemove(): Promise<void> {
+    if (this.useApi) {
+      if (!this.userStore.isLoggedIn) {
+        promptAction.showToast({ message: '请先登录', duration: 2000 });
+        router.pushUrl({ url: 'pages/LoginPage' });
+        return;
+      }
+      try {
+        const result = await ItemApi.deleteItem(this.itemId);
+        if (result.code === 200) {
+          promptAction.showToast({ message: '已下架', duration: 2000 });
+          setTimeout(() => {
+            router.back();
+          }, 500);
+        } else {
+          if (result.message) {
+            promptAction.showToast({ message: result.message, duration: 2000 });
+          }
+        }
+      } catch (e) {
+        console.error('[DetailPage] remove error:', JSON.stringify(e));
+        promptAction.showToast({ message: '操作失败，请重试', duration: 2000 });
+      }
+    } else {
+      this.viewModel.removeItem(this.itemId);
+      promptAction.showToast({ message: '已下架', duration: 2000 });
+      router.back();
+    }
+  }
+
+  @Builder
+  LoadingView() {
+    Column() {
+      Text('加载中...')
+        .fontSize(14)
+        .fontColor($r('app.color.text_hint'))
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor($r('app.color.bg_color'))
   }
 
   build() {
     Navigation() {
-      if (this.hasItem) {
+      if (this.isLoading) {
+        this.LoadingView()
+      } else if (this.hasItem) {
         Scroll() {
           Column() {
             Stack() {
@@ -80,6 +195,14 @@ struct DetailPage {
                 Text(formatTime(this.item.publishTime))
                   .fontSize(12)
                   .fontColor($r('app.color.text_hint'))
+
+                Blank()
+
+                if (this.viewCount > 0) {
+                  Text(`👁 ${this.viewCount}`)
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_hint'))
+                }
               }
               .width('100%')
             }
@@ -171,14 +294,10 @@ struct DetailPage {
                   .borderRadius(24)
                   .margin({ bottom: 12 })
                   .onClick(() => {
-                    this.viewModel.markAsResolved(this.itemId);
-                    const updated = this.viewModel.getItemById(this.itemId);
-                    if (updated) {
-                      this.item = updated;
-                    }
+                    this.handleResolve();
                   })
 
-                if (this.viewModel.isLoggedIn() && this.viewModel.currentUser!.id === this.item.publisherId) {
+                if (this.isMine) {
                   Button('下架信息')
                     .width('100%')
                     .height(48)
@@ -187,8 +306,7 @@ struct DetailPage {
                     .fontColor($r('app.color.text_secondary'))
                     .borderRadius(24)
                     .onClick(() => {
-                      this.viewModel.removeItem(this.itemId);
-                      router.back();
+                      this.handleRemove();
                     })
                 }
               }
