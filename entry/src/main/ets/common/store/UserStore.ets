@@ -19,7 +19,8 @@ export class UserStore {
   }
 
   init(): void {
-    const tokenValid = TokenUtil.getInstance().isTokenValid();
+    const tokenUtil = TokenUtil.getInstance();
+    const tokenValid = tokenUtil.isTokenValid();
     if (tokenValid) {
       this.isLoggedIn = true;
       this.loadUserInfo();
@@ -35,7 +36,8 @@ export class UserStore {
       const result = await UserApi.login(request);
       if (result.code === 200 && result.data) {
         const loginData = result.data as LoginResult;
-        TokenUtil.getInstance().saveToken(loginData.token, loginData.expireTime);
+        const tokenUtil = TokenUtil.getInstance();
+        tokenUtil.saveToken(loginData.token, loginData.expireTime);
         this.userInfo = loginData.userInfo;
         this.isLoggedIn = true;
         return true;
@@ -72,7 +74,25 @@ export class UserStore {
       const result = await UserApi.updateUserInfo(data);
       if (result.code === 200) {
         if (this.userInfo) {
-          Object.assign(this.userInfo, data);
+          // 手动复制属性而不是使用 Object.assign
+          if (data.name !== undefined) {
+            this.userInfo.name = data.name;
+          }
+          if (data.avatar !== undefined) {
+            this.userInfo.avatar = data.avatar;
+          }
+          if (data.phone !== undefined) {
+            this.userInfo.phone = data.phone;
+          }
+          if (data.studentId !== undefined) {
+            this.userInfo.studentId = data.studentId;
+          }
+          if (data.email !== undefined) {
+            this.userInfo.email = data.email;
+          }
+          if (data.gender !== undefined) {
+            this.userInfo.gender = data.gender;
+          }
         }
         return true;
       }
@@ -84,15 +104,26 @@ export class UserStore {
   }
 
   logout(): void {
-    TokenUtil.getInstance().clearToken();
+    const tokenUtil = TokenUtil.getInstance();
+    tokenUtil.clearToken();
     this.userInfo = null;
     this.isLoggedIn = false;
   }
 
   checkLogin(): boolean {
     if (!this.isLoggedIn) {
-      return TokenUtil.getInstance().isTokenValid();
+      const tokenUtil = TokenUtil.getInstance();
+      return tokenUtil.isTokenValid();
     }
     return this.isLoggedIn;
+  }
+
+  getToken(): string {
+    const tokenUtil = TokenUtil.getInstance();
+    return tokenUtil.getToken() || '';
+  }
+
+  getUserInfo(): UserInfo | null {
+    return this.userInfo;
   }
 }

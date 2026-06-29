@@ -3,7 +3,7 @@ import { UserInfo } from '../bean/UserInfo';
 import { ItemApi } from '../api/ItemApi';
 import { PageResult, ApiResult } from '../model/ApiResult';
 import { UserStore } from '../store/UserStore';
-import { PublishItemRequest, UpdateItemRequest } from '../model/ItemModel';
+import { PublishItemRequest } from '../model/ItemModel';
 
 export class NewLostFoundItem {
   type: ItemType = ItemType.LOST;
@@ -26,11 +26,33 @@ interface ListCache {
   expireTime: number;
 }
 
+interface DetailCache {
+  item: LostFoundItem;
+  expireTime: number;
+}
+
 interface ListCacheKey {
   type?: ItemType;
   category?: ItemCategory;
   status?: number;
   keyword?: string;
+}
+
+export interface ItemListResult {
+  list: LostFoundItem[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface PartialLostFoundItem {
+  type?: ItemType;
+  category?: ItemCategory;
+  title?: string;
+  description?: string;
+  location?: string;
+  contact?: string;
+  images?: string[];
+  status?: ItemStatus;
 }
 
 @Observed
@@ -46,7 +68,7 @@ export class AppViewModel {
   useApi: boolean = true;
 
   private listCache: Map<string, ListCache> = new Map();
-  private detailCache: Map<string, { item: LostFoundItem; expireTime: number }> = new Map();
+  private detailCache: Map<string, DetailCache> = new Map();
   private myItemsCache: ListCache | null = null;
   private readonly CACHE_DURATION: number = 5 * 60 * 1000;
 
@@ -81,8 +103,8 @@ export class AppViewModel {
     pageNum: number = 1,
     pageSize: number = 20,
     forceRefresh: boolean = false
-  ): Promise<{ list: LostFoundItem[]; total: number; hasMore: boolean }> {
-    const cacheKey = this.generateCacheKey({ type, category, status, keyword });
+  ): Promise<ItemListResult> {
+    const cacheKey = this.generateCacheKey({ type: type, category: category, status: status, keyword: keyword });
     const now = Date.now();
 
     if (!forceRefresh && this.useApi) {
@@ -90,33 +112,43 @@ export class AppViewModel {
       if (cached && cached.pageNum >= pageNum && !this.isCacheExpired(cached.expireTime)) {
         const end = pageNum * pageSize;
         const list = cached.items.slice(0, end);
-        return {
+        const result: ItemListResult = {
           list: list,
           total: cached.total,
           hasMore: end < cached.items.length || list.length < cached.total
         };
+        return result;
       }
     }
 
     try {
       if (this.useApi) {
-        const result: ApiResult<PageResult<LostFoundItem>> = await ItemApi.getItemList(
-          type, category, status, keyword, pageNum, pageSize
-        );
+        const params = {
+          type: type,
+          category: category,
+          status: status,
+          keyword: keyword,
+          pageNum: pageNum,
+          pageSize: pageSize,
+          sortBy: 'publishTime',
+          sortOrder: 'desc'
+        };
+        const result: ApiResult<PageResult<LostFoundItem>> = await ItemApi.getItemList(params);
 
         if (result.code === 200 && result.data) {
           const data = result.data;
           const existingCache = this.listCache.get(cacheKey);
 
           if (pageNum === 1 || !existingCache) {
-            this.listCache.set(cacheKey, {
+            const cacheData: ListCache = {
               items: data.list,
               total: data.total,
               pageNum: data.pageNum,
               pageSize: data.pageSize,
               totalPages: data.totalPages,
               expireTime: now + this.CACHE_DURATION
-            });
+            };
+            this.listCache.set(cacheKey, cacheData);
           } else {
             const mergedItems = existingCache.items.concat(data.list);
             existingCache.items = mergedItems;
@@ -126,26 +158,35 @@ export class AppViewModel {
             existingCache.expireTime = now + this.CACHE_DURATION;
           }
 
-          const cache = this.listCache.get(cacheKey)!;
-          const end = pageNum * pageSize;
-          return {
-            list: cache.items.slice(0, end),
-            total: cache.total,
-            hasMore: cache.items.length < cache.total
-          };
+          const cache = this.listCache.get(cacheKey);
+          if (cache) {
+            const end = pageNum * pageSize;
+            const itemListResult: ItemListResult = {
+              list: cache.items.slice(0, end),
+              total: cache.total,
+              hasMore: cache.items.length < cache.total
+            };
+            return itemListResult;
+          }
         }
       }
 
       this.items = this.getFilteredItems();
       const end = pageNum * pageSize;
-      return {
+      const result: ItemListResult = {
         list: this.items.slice(0, end),
         total: this.items.length,
         hasMore: end < this.items.length
       };
+      return result;
     } catch (e) {
       console.error('[AppViewModel] getItemList error:', JSON.stringify(e));
-      return { list: [], total: 0, hasMore: false };
+      const errorResult: ItemListResult = {
+        list: [],
+        total: 0,
+        hasMore: false
+      };
+      return errorResult;
     }
   }
 
@@ -202,16 +243,17 @@ export class AppViewModel {
     pageNum: number = 1,
     pageSize: number = 20,
     forceRefresh: boolean = false
-  ): Promise<{ list: LostFoundItem[]; total: number; hasMore: boolean }> {
+  ): Promise<ItemListResult> {
     const now = Date.now();
 
     if (!forceRefresh && this.useApi && this.myItemsCache && !this.isCacheExpired(this.myItemsCache.expireTime)) {
       const end = pageNum * pageSize;
-      return {
+      const result: ItemListResult = {
         list: this.myItemsCache.items.slice(0, end),
         total: this.myItemsCache.total,
         hasMore: end < this.myItemsCache.items.length
       };
+      return result;
     }
 
     try {
@@ -237,11 +279,12 @@ export class AppViewModel {
           }
 
           const end = pageNum * pageSize;
-          return {
+          const itemResult: ItemListResult = {
             list: this.myItemsCache.items.slice(0, end),
             total: this.myItemsCache.total,
             hasMore: this.myItemsCache.items.length < this.myItemsCache.total
           };
+          return itemResult;
         }
       }
     } catch (e) {
@@ -249,7 +292,12 @@ export class AppViewModel {
     }
 
     if (!this.currentUser) {
-      return { list: [], total: 0, hasMore: false };
+      const emptyResult: ItemListResult = {
+        list: [],
+        total: 0,
+        hasMore: false
+      };
+      return emptyResult;
     }
     const result: LostFoundItem[] = [];
     for (let i = 0; i < this.items.length; i++) {
@@ -261,7 +309,12 @@ export class AppViewModel {
       }
     }
     result.sort((a: LostFoundItem, b: LostFoundItem) => b.publishTime - a.publishTime);
-    return { list: result, total: result.length, hasMore: false };
+    const listResult: ItemListResult = {
+      list: result,
+      total: result.length,
+      hasMore: false
+    };
+    return listResult;
   }
 
   async getItemById(id: string, forceRefresh: boolean = false): Promise<LostFoundItem | undefined> {
@@ -276,10 +329,11 @@ export class AppViewModel {
       if (this.useApi) {
         const result = await ItemApi.getItemDetail(id);
         if (result.code === 200 && result.data) {
-          this.detailCache.set(id, {
+          const cacheData: DetailCache = {
             item: result.data as LostFoundItem,
             expireTime: Date.now() + this.CACHE_DURATION
-          });
+          };
+          this.detailCache.set(id, cacheData);
           return result.data as LostFoundItem;
         }
       }
@@ -355,17 +409,30 @@ export class AppViewModel {
   async updateItem(id: string, updates: PartialLostFoundItem): Promise<boolean> {
     try {
       if (this.useApi && this.userStore.isLoggedIn) {
-        const request: UpdateItemRequest = {
-          type: updates.type,
-          category: updates.category,
-          title: updates.title,
-          description: updates.description,
-          location: updates.location,
-          contact: updates.contact,
-          images: updates.images
-        };
+        const request: Record<string, Object> = {};
+        if (updates.type !== undefined) {
+          request['type'] = updates.type;
+        }
+        if (updates.category !== undefined) {
+          request['category'] = updates.category;
+        }
+        if (updates.title !== undefined) {
+          request['title'] = updates.title;
+        }
+        if (updates.description !== undefined) {
+          request['description'] = updates.description;
+        }
+        if (updates.location !== undefined) {
+          request['location'] = updates.location;
+        }
+        if (updates.contact !== undefined) {
+          request['contact'] = updates.contact;
+        }
+        if (updates.images !== undefined) {
+          request['images'] = updates.images;
+        }
 
-        const result = await ItemApi.updateItem(id, request);
+        const result = await ItemApi.updateItem(id, request as PublishItemRequest);
         if (result.code === 200) {
           this.clearListCache();
           this.clearDetailCache(id);
@@ -472,15 +539,4 @@ export class AppViewModel {
   isLoggedIn(): boolean {
     return this.userStore.isLoggedIn || this.currentUser !== null;
   }
-}
-
-export interface PartialLostFoundItem {
-  type?: ItemType;
-  category?: ItemCategory;
-  title?: string;
-  description?: string;
-  location?: string;
-  contact?: string;
-  images?: string[];
-  status?: ItemStatus;
 }

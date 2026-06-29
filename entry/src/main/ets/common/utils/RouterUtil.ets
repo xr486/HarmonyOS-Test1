@@ -23,7 +23,13 @@ export class RouterUtil {
    * 检查页面是否需要登录
    */
   static isAuthRequired(url: string): boolean {
-    return this.authRequiredPages.some((page: string) => url.includes(page));
+    const pages = RouterUtil.authRequiredPages;
+    for (let i = 0; i < pages.length; i++) {
+      if (url.includes(pages[i])) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -38,15 +44,21 @@ export class RouterUtil {
     params?: Record<string, Object>,
     requireLogin: boolean = false
   ): Promise<boolean> {
-    const needLogin = requireLogin || this.isAuthRequired(url);
+    const needLogin = requireLogin || RouterUtil.isAuthRequired(url);
+    const userStore = RouterUtil.userStore;
 
-    if (needLogin && !this.userStore.isLoggedIn) {
-      this.redirectUrl = url;
-      this.redirectParams = params || {};
+    if (needLogin && !userStore.isLoggedIn) {
+      RouterUtil.redirectUrl = url;
+      RouterUtil.redirectParams = params || {};
       try {
+        const redirectParams: Record<string, Object> = {
+          'from': 'guard',
+          'redirectUrl': url,
+          'redirectParams': params || {}
+        };
         await router.pushUrl({
           url: 'pages/LoginPage',
-          params: { from: 'guard', redirectUrl: url, redirectParams: params || {} }
+          params: redirectParams
         });
         return false;
       } catch (e) {
@@ -72,11 +84,11 @@ export class RouterUtil {
    * @returns 是否跳转到了原页面
    */
   static async redirectAfterLogin(): Promise<boolean> {
-    if (this.redirectUrl) {
-      const url = this.redirectUrl;
-      const params = this.redirectParams;
-      this.redirectUrl = '';
-      this.redirectParams = {};
+    if (RouterUtil.redirectUrl) {
+      const url = RouterUtil.redirectUrl;
+      const params = RouterUtil.redirectParams;
+      RouterUtil.redirectUrl = '';
+      RouterUtil.redirectParams = {};
       try {
         await router.replaceUrl({
           url: url,
@@ -95,16 +107,16 @@ export class RouterUtil {
    * 保存重定向URL（登录页手动调用）
    */
   static setRedirectUrl(url: string, params: Record<string, Object> = {}): void {
-    this.redirectUrl = url;
-    this.redirectParams = params;
+    RouterUtil.redirectUrl = url;
+    RouterUtil.redirectParams = params;
   }
 
   /**
    * 清除重定向URL
    */
   static clearRedirectUrl(): void {
-    this.redirectUrl = '';
-    this.redirectParams = {};
+    RouterUtil.redirectUrl = '';
+    RouterUtil.redirectParams = {};
   }
 
   /**
@@ -133,8 +145,16 @@ export class RouterUtil {
    * 添加需要登录的页面
    */
   static addAuthPage(page: string): void {
-    if (!this.authRequiredPages.includes(page)) {
-      this.authRequiredPages.push(page);
+    const pages = RouterUtil.authRequiredPages;
+    let found = false;
+    for (let i = 0; i < pages.length; i++) {
+      if (pages[i] === page) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      pages.push(page);
     }
   }
 }

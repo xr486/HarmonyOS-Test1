@@ -3,8 +3,8 @@ import { TokenUtil } from '../utils/TokenUtil';
 import { ApiResult } from '../model/ApiResult';
 import promptAction from '@ohos.promptAction';
 
-const BASE_URL = 'https://api.campus-lostandfound.com/api/v1';
-const DEFAULT_TIMEOUT = 15000;
+const BASE_URL = 'http://localhost:8080/api/v1';
+const DEFAULT_TIMEOUT: number = 15000;
 
 export enum HttpMethod {
   GET = http.RequestMethod.GET,
@@ -37,12 +37,18 @@ export class HttpUtil {
   }
 
   private buildUrl(url: string, params?: Record<string, string | number | boolean>): string {
-    let fullUrl = url.startsWith('http') ? url : BASE_URL + url;
+    let fullUrl: string = url.startsWith('http') ? url : BASE_URL + url;
     if (params && Object.keys(params).length > 0) {
-      const queryString = Object.keys(params)
-        .filter(key => params[key] !== undefined && params[key] !== null && params[key] !== '')
-        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(String(params[key]))}`)
-        .join('&');
+      const keys: string[] = Object.keys(params);
+      const queryParts: string[] = [];
+      for (let i: number = 0; i < keys.length; i++) {
+        const key: string = keys[i];
+        const value: string | number | boolean | undefined = params[key];
+        if (value !== undefined && value !== null && value !== '') {
+          queryParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+        }
+      }
+      const queryString: string = queryParts.join('&');
       if (queryString) {
         fullUrl += (fullUrl.includes('?') ? '&' : '?') + queryString;
       }
@@ -56,7 +62,8 @@ export class HttpUtil {
       'Accept': 'application/json'
     };
     if (needAuth) {
-      const token = TokenUtil.getInstance().getToken();
+      const tokenUtil: TokenUtil = TokenUtil.getInstance();
+      const token: string | null = tokenUtil.getToken();
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -68,17 +75,17 @@ export class HttpUtil {
     const result: ApiResult<T> = new ApiResult<T>();
     try {
       if (typeof response.result === 'string') {
-        const parsed = JSON.parse(response.result);
-        result.code = parsed.code || 0;
-        result.message = parsed.message || '';
-        result.data = parsed.data !== undefined ? parsed.data : null;
-        result.timestamp = parsed.timestamp || Date.now();
+        const parsed: Record<string, Object> = JSON.parse(response.result) as Record<string, Object>;
+        result.code = (parsed['code'] as number) || 0;
+        result.message = (parsed['message'] as string) || '';
+        result.data = parsed['data'] !== undefined ? (parsed['data'] as T) : null;
+        result.timestamp = (parsed['timestamp'] as number) || Date.now();
       } else if (response.result && typeof response.result === 'object') {
-        const parsed = response.result as Record<string, Object>;
-        result.code = (parsed.code as number) || 0;
-        result.message = (parsed.message as string) || '';
-        result.data = parsed.data !== undefined ? (parsed.data as T) : null;
-        result.timestamp = (parsed.timestamp as number) || Date.now();
+        const parsed: Record<string, Object> = response.result as Record<string, Object>;
+        result.code = (parsed['code'] as number) || 0;
+        result.message = (parsed['message'] as string) || '';
+        result.data = parsed['data'] !== undefined ? (parsed['data'] as T) : null;
+        result.timestamp = (parsed['timestamp'] as number) || Date.now();
       }
     } catch (e) {
       console.error('[HttpUtil] parseResponse error:', JSON.stringify(e));
@@ -90,9 +97,9 @@ export class HttpUtil {
     return result;
   }
 
-  private handleError(error: Error, showError: boolean = true): ApiResult<null> {
+  private handleError(error: Error, showError: boolean = true): ApiResult<Object> {
     console.error('[HttpUtil] request error:', error.message);
-    const result: ApiResult<null> = new ApiResult<null>();
+    const result: ApiResult<Object> = new ApiResult<Object>();
     result.code = -1;
     result.message = '网络请求失败，请检查网络连接';
     result.data = null;
@@ -116,31 +123,30 @@ export class HttpUtil {
       }
     }
     if (result.code === 401) {
-      TokenUtil.getInstance().clearToken();
+      const tokenUtil: TokenUtil = TokenUtil.getInstance();
+      tokenUtil.clearToken();
     }
   }
 
   async request<T>(options: RequestOptions): Promise<ApiResult<T>> {
-    const {
-      url,
-      method,
-      data,
-      params,
-      needAuth = false,
-      showError = true,
-      timeout = DEFAULT_TIMEOUT
-    } = options;
+    const url: string = options.url;
+    const method: HttpMethod = options.method;
+    const data: object | undefined = options.data;
+    const params: Record<string, string | number | boolean> | undefined = options.params;
+    const needAuth: boolean = options.needAuth ?? false;
+    const showError: boolean = options.showError ?? true;
+    const timeout: number = options.timeout ?? DEFAULT_TIMEOUT;
 
     let httpRequest: http.HttpRequest | null = null;
 
     try {
       httpRequest = http.createHttp();
-      const fullUrl = this.buildUrl(url, params);
-      const headers = this.buildHeaders(needAuth);
+      const fullUrl: string = this.buildUrl(url, params);
+      const headers: Record<string, string> = this.buildHeaders(needAuth);
 
       console.log('[HttpUtil] request:', method, fullUrl);
 
-      const response = await httpRequest.request(fullUrl, {
+      const response: http.HttpResponse = await httpRequest.request(fullUrl, {
         method: method,
         header: headers,
         extraData: data,
@@ -148,7 +154,7 @@ export class HttpUtil {
         readTimeout: timeout
       });
 
-      const result = this.parseResponse<T>(response);
+      const result: ApiResult<T> = this.parseResponse<T>(response);
 
       if (result.code !== 200) {
         this.handleBusinessError(result, showError);
@@ -156,7 +162,7 @@ export class HttpUtil {
 
       return result;
     } catch (error) {
-      return this.handleError(error as Error, showError);
+      return this.handleError(error as Error, showError) as ApiResult<T>;
     } finally {
       if (httpRequest) {
         try {
@@ -170,37 +176,37 @@ export class HttpUtil {
 
   get<T>(url: string, params?: Record<string, string | number | boolean>, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
-      url,
+      url: url,
       method: HttpMethod.GET,
-      params,
-      needAuth
+      params: params,
+      needAuth: needAuth
     });
   }
 
   post<T>(url: string, data?: object, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
-      url,
+      url: url,
       method: HttpMethod.POST,
-      data,
-      needAuth
+      data: data,
+      needAuth: needAuth
     });
   }
 
   put<T>(url: string, data?: object, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
-      url,
+      url: url,
       method: HttpMethod.PUT,
-      data,
-      needAuth
+      data: data,
+      needAuth: needAuth
     });
   }
 
   delete<T>(url: string, params?: Record<string, string | number | boolean>, needAuth: boolean = false): Promise<ApiResult<T>> {
     return this.request<T>({
-      url,
+      url: url,
       method: HttpMethod.DELETE,
-      params,
-      needAuth
+      params: params,
+      needAuth: needAuth
     });
   }
 }

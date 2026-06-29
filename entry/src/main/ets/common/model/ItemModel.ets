@@ -8,7 +8,8 @@ export enum ItemCategory {
   DIGITAL = 2,
   CLOTHING = 3,
   BOOK = 4,
-  OTHER = 5
+  OTHER = 5,
+  ALL = 0
 }
 
 export enum ItemStatus {
@@ -68,4 +69,14 @@ export class LatestItem {
 export class ResolveResult {
   status: number = 0;
   claimTime: number = 0;
+}
+
+export class UpdateItemRequest {
+  type?: ItemType = undefined;
+  category?: ItemCategory = undefined;
+  title?: string = '';
+  description?: string = '';
+  location?: string = '';
+  contact?: string = '';
+  images?: string[] = [];
 }
