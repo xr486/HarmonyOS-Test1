@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/DetailPage",
     "pages/LoginPage",
-    "pages/EditProfilePage"
+    "pages/EditProfilePage",
+    "pages/EditPage"
   ]
 }

@@ -452,16 +452,34 @@ struct DetailPage {
                   })
 
                 if (this.isMine) {
-                  Button('下架信息')
-                    .width('100%')
-                    .height(48)
-                    .fontSize(16)
-                    .backgroundColor($r('app.color.bg_color'))
-                    .fontColor($r('app.color.text_secondary'))
-                    .borderRadius(24)
-                    .onClick(() => {
-                      this.handleRemove();
-                    })
+                  Row({ space: 12 }) {
+                    Button('编辑')
+                      .width('45%')
+                      .height(48)
+                      .fontSize(16)
+                      .backgroundColor($r('app.color.primary_light'))
+                      .fontColor($r('app.color.primary_color'))
+                      .borderRadius(24)
+                      .onClick(() => {
+                        router.pushUrl({
+                          url: 'pages/EditPage',
+                          params: { id: this.itemId }
+                        });
+                      })
+
+                    Button('下架')
+                      .width('45%')
+                      .height(48)
+                      .fontSize(16)
+                      .backgroundColor($r('app.color.bg_color'))
+                      .fontColor($r('app.color.text_secondary'))
+                      .borderRadius(24)
+                      .onClick(() => {
+                        this.handleRemove();
+                      })
+                  }
+                  .width('100%')
+                  .justifyContent(FlexAlign.Center)
                 }
               }
               .width('100%')
