@@ -90,7 +90,7 @@ struct DetailPage {
       }
     } else {
       this.viewModel.markAsResolved(this.itemId);
-      const updated = this.viewModel.getItemById(this.itemId);
+      const updated = await this.viewModel.getItemById(this.itemId);
       if (updated) {
         this.item = updated;
       }
@@ -253,16 +253,7 @@ struct DetailPage {
         }
         .index(this.currentImageIndex)
         .autoPlay(false)
-        .indicator(
-          new SwiperDigitalIndicator()
-            .itemWidth(6)
-            .itemHeight(6)
-            .selectedItemWidth(12)
-            .selectedItemHeight(6)
-            .itemColor(Color.White)
-            .selectedItemColor($r('app.color.primary_color'))
-            .bottom(20)
-        )
+        .indicator(true)
         .loop(false)
         .layoutWeight(1)
 

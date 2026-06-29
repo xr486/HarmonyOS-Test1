@@ -13,7 +13,7 @@ export class UserApi {
     return http.get<UserInfo>('/user/info', undefined, true);
   }
 
-  static updateUserInfo(data: UserInfo): Promise<ApiResult<Object>> {
+  static updateUserInfo(data: Record<string, Object>): Promise<ApiResult<Object>> {
     const http: HttpUtil = HttpUtil.getInstance();
     return http.put<Object>('/user/info', data, true);
   }

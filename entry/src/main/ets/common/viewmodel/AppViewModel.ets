@@ -70,7 +70,8 @@ export class AppViewModel {
   private constructor() {
     AppStorage.setOrCreate('globalDataVersion', 1);
     this.dataVersion = 1;
-    this.currentUser = this.userStore.getUserInfo();
+    const userInfo: UserInfo | null = this.userStore.getUserInfo();
+    this.currentUser = userInfo;
   }
 
   public static getInstance(): AppViewModel {
